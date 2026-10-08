@@ -35,7 +35,7 @@ final class GithubPoller: @unchecked Sendable {
     @MainActor private static var isWanted: Bool {
         if AppState.shared.activeIntegrations.contains("integration_github") { return true }
         #if PHONE_LINK
-        return UserDefaults.standard.bool(forKey: "iPhoneSyncEnabled")
+        return CloudProbe.isEnabled
         #else
         return false
         #endif

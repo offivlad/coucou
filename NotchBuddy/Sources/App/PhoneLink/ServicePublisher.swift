@@ -16,7 +16,7 @@ import Combine
 final class ServicePublisher {
     static let shared = ServicePublisher()
 
-    private let container = CKContainer(identifier: CloudProbe.containerID)
+    private lazy var container = CKContainer(identifier: CloudProbe.containerID)
     private var database: CKDatabase { container.privateCloudDatabase }
     private var cancellable: AnyCancellable?
     private var published: [String: ServiceSnapshot] = [:]

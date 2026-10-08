@@ -21,7 +21,7 @@ import CryptoKit
 final class ApprovalRelay {
     static let shared = ApprovalRelay()
 
-    private let container = CKContainer(identifier: "iCloud.fr.louisraille.Coucou")
+    private lazy var container = CKContainer(identifier: "iCloud.fr.louisraille.Coucou")
     private var database: CKDatabase { container.privateCloudDatabase }
     private var zoneID: CKRecordZone.ID { SessionSnapshot.zoneID }
 

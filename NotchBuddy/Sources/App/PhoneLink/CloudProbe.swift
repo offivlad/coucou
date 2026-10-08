@@ -1,6 +1,7 @@
 #if PHONE_LINK
 import AppKit
 import CloudKit
+import Security
 
 // MARK: - iPhone link
 //
@@ -23,7 +24,9 @@ final class CloudProbe {
     static let zoneID = CKRecordZone.ID(zoneName: "Coucou", ownerName: CKCurrentUserDefaultName)
     private static let subscriptionID = "coucou-zone-mac"
 
-    private let container = CKContainer(identifier: CloudProbe.containerID)
+    // Built on first use, never at launch: CloudKit kills an app that creates a
+    // container without the iCloud entitlement (ad hoc test builds).
+    private lazy var container = CKContainer(identifier: CloudProbe.containerID)
     private var database: CKDatabase { container.privateCloudDatabase }
 
     private let launchDate = Date()
@@ -51,7 +54,17 @@ final class CloudProbe {
 
     static let enabledKey = "iPhoneSyncEnabled"
 
-    static var isEnabled: Bool { UserDefaults.standard.bool(forKey: enabledKey) }
+    static var isEnabled: Bool { isAvailable && UserDefaults.standard.bool(forKey: enabledKey) }
+
+    /// True when the app is signed with the iCloud container. Builds without the
+    /// Developer ID provisioning profile (ad hoc test builds) have no iCloud: the
+    /// iPhone sync stays off there instead of crashing CloudKit.
+    static let isAvailable: Bool = {
+        guard let task = SecTaskCreateFromSelf(nil),
+              let value = SecTaskCopyValueForEntitlement(task, "com.apple.developer.icloud-container-identifiers" as CFString, nil)
+        else { return false }
+        return (value as? [String])?.contains(containerID) ?? false
+    }()
 
     /// Called at launch: starts only if the user turned the iPhone sync on.
     func startIfEnabled() {
@@ -60,7 +73,7 @@ final class CloudProbe {
 
     func setEnabled(_ on: Bool) {
         UserDefaults.standard.set(on, forKey: Self.enabledKey)
-        if on { start() } else { stop() }
+        if on && Self.isAvailable { start() } else { stop() }
     }
 
     private func stop() {

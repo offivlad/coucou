@@ -14,7 +14,7 @@ import CloudKit
 final class TurnRecorder {
     static let shared = TurnRecorder()
 
-    private let container = CKContainer(identifier: CloudProbe.containerID)
+    private lazy var container = CKContainer(identifier: CloudProbe.containerID)
     private var database: CKDatabase { container.privateCloudDatabase }
     private var running = false
     private var turns: [String: TurnSnapshot] = [:]
