@@ -57,7 +57,7 @@ struct PillDefinition {
         case "agent_cursor":       return "Cursor"
         case "agent_codex":        return "Codex"
         case "agent_hermes":       return "Hermes"
-        case "agent_claude-desktop": return "Claude Desktop"
+        case "agent_claude-desktop": return "Claude"
         case "agent_chatgpt-desktop": return "ChatGPT"
         default:                   return "Agent"
         }
@@ -78,6 +78,11 @@ enum PillCatalog {
               category: .workspace, subtitle: "Integration",  source: .agent,  githubOnly: true),
         .init(id: "agent_codex",         name: "Codex",       color: "#2DD4BF",
               category: .workspace, subtitle: "Integration",  source: .agent,  githubOnly: true),
+        // The Claude desktop app. Claude Code sessions from its Code tab: the relay tags them
+        // `coucou_agent: claude-desktop` from CLAUDE_CODE_ENTRYPOINT, so nothing to install.
+        // In the GitHub build, ChatAppWatcher also shows the app's chats on this pill.
+        .init(id: "agent_claude-desktop", name: "Claude",     color: "#D97757",
+              category: .workspace, subtitle: "Integration",  source: .agent),
         // ── Agents ───────────────────────────────────────────────────────────
         .init(id: "agent_gemini",        name: "Gemini CLI",  color: "#8AB4F8",
               category: .agent,     subtitle: "Agent",        source: .agent,  githubOnly: true),
@@ -91,11 +96,6 @@ enum PillCatalog {
               category: .agent,     subtitle: "Agent",        source: .agent,  githubOnly: true),
         .init(id: "agent_hermes",        name: "Hermes",      color: "#C084FC",
               category: .agent,     subtitle: "Agent",        source: .agent,  githubOnly: true),
-        // Claude Code sessions run from the Claude desktop app: the relay tags them
-        // `coucou_agent: claude-desktop` from CLAUDE_CODE_ENTRYPOINT, so nothing to install.
-        // In the GitHub build, ChatAppWatcher also shows the app's chats on this pill.
-        .init(id: "agent_claude-desktop", name: "Claude Desktop", color: "#D97757",
-              category: .agent,     subtitle: "Agent",        source: .agent),
         // ChatGPT desktop app chats, read by ChatAppWatcher (Accessibility, GitHub build).
         .init(id: "agent_chatgpt-desktop", name: "ChatGPT",   color: "#10A37F",
               category: .agent,     subtitle: "Agent",        source: .agent,  githubOnly: true),

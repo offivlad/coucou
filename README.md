@@ -334,7 +334,7 @@ If Coucou isn't running, the hook exits immediately: **Claude Code is never bloc
 | OpenCode | Plugin — **Settings → OpenCode Plugin → Install** | No |
 | Amp | Plugin — **Settings → Amp Plugin → Install** | No |
 | Hermes | Plugin — **Settings → Agents → Hermes → Install** | No |
-| Claude Desktop | Code tab sessions: nothing to install. Chats: **Settings → Agents → Claude & ChatGPT apps** | Chats: Mac only |
+| Claude (desktop app) | Code tab sessions: nothing to install. Chats: **Settings → Agents → Claude & ChatGPT apps** | Chats: Mac only |
 | ChatGPT Desktop | **Settings → Agents → Claude & ChatGPT apps** (Accessibility) | Mac only |
 | Any other | `--agent <name>` flag; see [`docs/AGENTS.md`](docs/AGENTS.md) | No |
 

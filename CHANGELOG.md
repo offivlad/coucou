@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased (личная сборка)
+
+- **Claude and ChatGPT desktop apps** — Mochi thinks while the Claude or ChatGPT app writes an answer and tells you when it's ready, and shows when Claude waits for you to allow a tool. Settings → Agents → Claude & ChatGPT apps (Accessibility: reads button labels and the window title only). Ported from github.com/Zeffut/coucou
+
 ## Windows and Linux 0.5.0 — October 15, 2026
 
 Windows and Linux catch up with the Mac's 0.3.0 and 0.4.0: the Coucou window, Flow dictation, the Notetaker and « OK Coucou ». All of it free and open source.

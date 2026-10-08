@@ -762,7 +762,7 @@ final class HookServer: @unchecked Sendable {
         } else {
             color = IslandConst.colorForProject(name)
         }
-        // The desktop app pills read "Claude Desktop" / "ChatGPT", not their coucou_agent tag.
+        // The desktop app pills read "Claude" / "ChatGPT", not their coucou_agent tag.
         let isChatApp = ChatApp.allCases.contains { $0.pillId == id }
         let displayName = isChatApp ? (PillCatalog.definition(for: id)?.name ?? name) : name
         let task = AgentTask(id: id, name: displayName, color: color, state: .idle, steps: [], source: .agent)
