@@ -57,6 +57,7 @@ final class HookServer: @unchecked Sendable {
     private var activeSessionId: String? = nil        // current Claude Code session
     private var focusBeforeApproval: String? = nil    // saved focus to restore after approval
     private var sessions = PillSessionRegistry()      // live sessions behind each pill
+    private var lastHookEvents: [String: (name: String, at: Date)] = [:]  // per coucou_agent, main actor only
 
     private init() {}
 
@@ -392,12 +393,19 @@ final class HookServer: @unchecked Sendable {
         }
 
         let eventName = payload["hook_event_name"] as? String ?? ""
+        let agentTag  = payload["coucou_agent"] as? String ?? ""
 
         if eventName == "PermissionRequest" {
             // Hold fd open — Claude Code waits for our decision (up to 120s)
-            Task { @MainActor in self.processPermissionRequest(fd: fd, payload: payload) }
+            Task { @MainActor in
+                self.noteHookEvent(agent: agentTag, name: eventName)
+                self.processPermissionRequest(fd: fd, payload: payload)
+            }
         } else {
-            Task { @MainActor in self.processEvent(name: eventName, payload: payload) }
+            Task { @MainActor in
+                self.noteHookEvent(agent: agentTag, name: eventName)
+                self.processEvent(name: eventName, payload: payload)
+            }
             sendLine(fd: fd, text: #"{"ok":true}"#)
             close(fd)
         }
@@ -479,6 +487,9 @@ final class HookServer: @unchecked Sendable {
             projectName: isExternalAgent ? (validAgent ?? projectName) : projectName,
             cwd: isExternalAgent ? "" : cwd,
             hostApp: hostApp, bundleId: bundleId)
+        // Set by the chat app watcher when the app is in front: the user already sees the
+        // answer, so Mochi updates without sound, badge or expanding.
+        let quiet = payload["coucou_quiet"] as? Bool ?? false
         // For sessions that carry no id, derive a unique key from pill + cwd so that
         // concurrent anonymous sessions are tracked independently in RecapStore.
         let recapSessionId = (sessionId == "unknown" || sessionId.isEmpty)
@@ -538,7 +549,7 @@ final class HookServer: @unchecked Sendable {
             }
             RecapStore.shared.userPromptSubmit(sessionId: recapSessionId, pillId: agentId, project: projectName)
             NotificationCenter.default.post(name: .checkMondayRecap, object: nil)
-            if state.isPresent { expandIfNeeded(to: .overview) }
+            if state.isPresent && !quiet { expandIfNeeded(to: .overview) }
 
         case "PreToolUse":
             activeSessionId = sessionId
@@ -604,11 +615,13 @@ final class HookServer: @unchecked Sendable {
             if !finalText.isEmpty, let idx = state.tasks.firstIndex(where: { $0.id == agentId }) {
                 state.tasks[idx].finalLine = finalText
             }
-            SoundEngine.shared.play("finish")
-            if focused {
-                expandIfNeeded(to: .finished)
-            } else {
-                setPillBadge(id: agentId, badge: .finished)
+            if !quiet {
+                SoundEngine.shared.play("finish")
+                if focused {
+                    expandIfNeeded(to: .finished)
+                } else {
+                    setPillBadge(id: agentId, badge: .finished)
+                }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 5.2) {
                 // A session (this one or a sibling) may have started a new turn meanwhile.
@@ -670,6 +683,55 @@ final class HookServer: @unchecked Sendable {
         }
     }
 
+    // MARK: - Chat app watcher (Claude Desktop, ChatGPT Desktop)
+
+    /// Events from ChatAppWatcher, which reads the chat apps instead of receiving hooks:
+    /// they take the same path as a hook event from the socket.
+    @MainActor
+    func ingestLocalEvent(name: String, payload: [String: Any]) {
+        processEvent(name: name, payload: payload)
+    }
+
+    @MainActor
+    private func noteHookEvent(agent: String, name: String) {
+        guard !agent.isEmpty, !name.isEmpty else { return }
+        lastHookEvents[agent] = (name, Date())
+        // A hook turn on a chat app's pill (Claude's Code tab): its finished card is Claude Code's again.
+        if AppState.shared.chatAnswerPillId == "agent_\(agent)" { AppState.shared.chatAnswerPillId = nil }
+    }
+
+    /// True while hooks tagged `agent` report a turn in progress, or did less than 10 s ago.
+    /// The watcher then stays silent, so a Claude Code turn from the Claude app's Code tab
+    /// is not reported twice.
+    @MainActor
+    func hasLiveHookSession(agent: String) -> Bool {
+        guard let last = lastHookEvents[agent] else { return false }
+        let age = Date().timeIntervalSince(last.at)
+        if age < 10 { return true }
+        let working: Set<String> = ["UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
+                                    "PermissionRequest", "SubagentStart", "SubagentStop"]
+        return working.contains(last.name) && age < 15 * 60
+    }
+
+    /// The chat app shows a tool prompt. Coucou never answers it: the user clicks in the app.
+    @MainActor
+    func chatAppNeedsApproval(agent: String, appName: String, quiet: Bool) {
+        let id = "agent_\(agent)"
+        upsertExternalAgent(id: id, name: agent)
+        AppState.shared.updateTask(id: id, state: .approval)
+        appendStep(id: id, step: String(localized: "⏳ Approval pending in \(appName)"))
+        guard !quiet else { return }
+        SoundEngine.shared.play("question")
+        if AppState.shared.focusId != id { setPillBadge(id: id, badge: .approval) }
+    }
+
+    @MainActor
+    func chatAppApprovalCleared(agent: String) {
+        let id = "agent_\(agent)"
+        clearPillBadge(id: id)
+        AppState.shared.updateTask(id: id, state: .thinking)
+    }
+
     // MARK: - Agent validation + dynamic pill
 
     /// Validates a coucou_agent name: lowercase, digits and hyphens, 1–24 chars.
@@ -700,7 +762,10 @@ final class HookServer: @unchecked Sendable {
         } else {
             color = IslandConst.colorForProject(name)
         }
-        let task = AgentTask(id: id, name: name, color: color, state: .idle, steps: [], source: .agent)
+        // The desktop app pills read "Claude Desktop" / "ChatGPT", not their coucou_agent tag.
+        let isChatApp = ChatApp.allCases.contains { $0.pillId == id }
+        let displayName = isChatApp ? (PillCatalog.definition(for: id)?.name ?? name) : name
+        let task = AgentTask(id: id, name: displayName, color: color, state: .idle, steps: [], source: .agent)
         if let claudeIdx = state.tasks.firstIndex(where: { $0.id == "integration_claude" }) {
             state.tasks.insert(task, at: claudeIdx + 1)
         } else {

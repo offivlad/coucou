@@ -474,6 +474,10 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Pill whose last "finished" is a chat answer from a desktop app (ChatAppWatcher),
+    /// not a coding session: the finished card words it accordingly.
+    @Published var chatAnswerPillId: String? = nil
+
     // Plan gauge: show pill in notch header — persisted
     #if !APPSTORE
     @Published var showPlanInNotch: Bool = false {

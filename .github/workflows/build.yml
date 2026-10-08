@@ -127,6 +127,8 @@ jobs:
 
       - name: Conversation context tests
         run: bash scripts/test-conversation-context.sh
+      - name: Chat app watcher tests
+        run: bash scripts/test-chat-apps.sh
 
       - name: Build
         run: |

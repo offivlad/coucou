@@ -107,6 +107,25 @@ the main pill; session support is coming in a future version.
 
 Claude Desktop (`agent_claude-desktop`, every build) is there as well. Claude Code sessions started from the Claude desktop app's Code tab carry `CLAUDE_CODE_ENTRYPOINT=claude-desktop`; the relay tags them `coucou_agent: claude-desktop` on its own (an explicit `--agent` still wins), so nothing extra is installed. Declare the pill to keep it after the session ends; the ↗ button opens the Claude app.
 
+ChatGPT (`agent_chatgpt-desktop`, GitHub build only) is the ChatGPT desktop app. See below for how its chats, and the Claude app's chats, reach the notch.
+
+## Claude and ChatGPT desktop apps (chats)
+
+The chats of the Claude and ChatGPT desktop apps have no hooks. In the GitHub build, **Settings → Agents → Claude & ChatGPT apps** turns on `ChatAppWatcher`, which reads the apps' windows through the macOS Accessibility API (the toggle asks for the permission):
+
+| What Coucou sees in the app | Event on the pill |
+|---|---|
+| A stop button ("Stop response", "Stop generating", "Arrêter la réponse"…) | `UserPromptSubmit`: Mochi thinks; the step is the conversation title when the window has one |
+| A tool prompt in Claude ("Allow once", or "Always allow" next to "Deny") | "⏳ Approval pending in Claude", approval badge — Coucou never answers it, you click in the app |
+| No stop button for two scans in a row | `Stop`: "Answer ready · <title>", Mochi jumps, the finished card has an **Open Claude** / **Open ChatGPT** button |
+
+- Claude's chats share the `agent_claude-desktop` pill with its Code tab sessions. While a Code tab turn reports through its hooks (or did less than 10 s ago), the watcher stays silent, so the same answer is never reported twice.
+- When the app is in front, the answer is under your eyes: Mochi updates without sound, badge or expanding the island.
+- Only button labels and the window title are read. Nothing is clicked, typed or sent, and nothing leaves the Mac.
+- Cost: the timer runs only while the option is on, the permission is granted and one of the apps is open. Each 1.5 s tick re-reads the message box found on the first scan; the whole window (at most 4,000 elements or 1 s) is walked only to find the box again — backing off to once a minute when it can't — or every 6 s while Claude answers, to catch a tool prompt.
+- Not available in the App Store build (the sandbox forbids reading other apps), nor yet on Windows and Linux.
+- The logic that reads labels and debounces scans is in `ChatAppWatcherLogic.swift`, tested by `scripts/test-chat-apps.sh`.
+
 ## Real-world examples
 
 ### Gemini CLI (macOS)

@@ -58,6 +58,7 @@ struct PillDefinition {
         case "agent_codex":        return "Codex"
         case "agent_hermes":       return "Hermes"
         case "agent_claude-desktop": return "Claude Desktop"
+        case "agent_chatgpt-desktop": return "ChatGPT"
         default:                   return "Agent"
         }
     }
@@ -92,8 +93,12 @@ enum PillCatalog {
               category: .agent,     subtitle: "Agent",        source: .agent,  githubOnly: true),
         // Claude Code sessions run from the Claude desktop app: the relay tags them
         // `coucou_agent: claude-desktop` from CLAUDE_CODE_ENTRYPOINT, so nothing to install.
+        // In the GitHub build, ChatAppWatcher also shows the app's chats on this pill.
         .init(id: "agent_claude-desktop", name: "Claude Desktop", color: "#D97757",
               category: .agent,     subtitle: "Agent",        source: .agent),
+        // ChatGPT desktop app chats, read by ChatAppWatcher (Accessibility, GitHub build).
+        .init(id: "agent_chatgpt-desktop", name: "ChatGPT",   color: "#10A37F",
+              category: .agent,     subtitle: "Agent",        source: .agent,  githubOnly: true),
         // ── AI for the chat ──────────────────────────────────────────────────
         .init(id: "ai_anthropic",        name: "Anthropic",   color: ChatProvider.anthropic.accentHex,
               category: .ai,        subtitle: "Chat",         source: .n8n),

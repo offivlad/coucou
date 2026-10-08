@@ -202,6 +202,44 @@ Priorité : failure > review demandée > success. Un seul badge/son par cycle.
 
 ---
 
+## 1quinquies. Apps Claude et ChatGPT (conversations)
+
+**Plateforme** : macOS, build GitHub uniquement (le bac à sable App Store interdit de lire les autres apps). Pas encore sur Windows et Linux.
+**Code** : `ChatAppWatcher.swift` (AppKit, Accessibilité), `ChatAppWatcherLogic.swift` (logique pure, testée par `scripts/test-chat-apps.sh`).
+
+Les conversations de l'app Claude (`com.anthropic.claudefordesktop`) et de l'app ChatGPT (`com.openai.chat`) n'ont pas de hooks. Les sessions Claude Code de l'onglet Code de l'app Claude, elles, en ont (section 1, `CLAUDE_CODE_ENTRYPOINT=claude-desktop`).
+
+### Activation
+Réglages → Agents → **Claude & ChatGPT apps** → « Watch the Claude and ChatGPT apps » (désactivé par défaut, clé UserDefaults `chatAppsWatchEnabled`). Le toggle demande la permission Accessibilité si elle manque ; tant qu'elle n'est pas accordée, un lien ouvre Réglages Système → Confidentialité et sécurité → Accessibilité.
+
+### Lecture
+- Arbre d'accessibilité de l'app, lu sur une file en arrière-plan. Claude est une app Electron : `AXManualAccessibility = true` sur l'élément de l'app pour que Chromium construise l'arbre.
+- Seuls les libellés des boutons (`AXDescription`, `AXTitle`, `AXHelp`) et le titre de la fenêtre sont lus. Rien n'est cliqué, tapé ni envoyé ; rien ne quitte le Mac.
+- Bouton stop (« Stop response », « Stop generating », « Stop streaming », « Arrêter la réponse »… ; pas « Stop recording », « Stop dictation », etc.) → la réponse s'écrit.
+- Invite d'outil de Claude (« Allow once », ou « Always allow » à côté de « Deny ») → l'app attend l'utilisateur. Coucou n'y répond jamais.
+- Boutons d'envoi, de dictée, de pièce jointe → repèrent la zone de saisie.
+
+### Coût
+- Le minuteur (1,5 s) ne tourne que si l'option est active, la permission accordée et une des apps ouverte.
+- Chaque tick relit la zone de saisie trouvée au premier passage (quelques dizaines d'éléments). La fenêtre entière (4 000 éléments ou 1 s au plus, en profondeur, dernier enfant d'abord : la zone de saisie et les dialogues sont en fin de fenêtre) n'est parcourue que pour retrouver la zone — au plus toutes les 5 s, puis 10, 20… jusqu'à 60 s tant qu'elle reste introuvable — ou toutes les 6 s pendant une réponse de Claude, pour voir une invite d'outil.
+- Délai de 0,5 s par appel d'accessibilité : une app figée ne bloque pas la file.
+
+### Événements
+| Vu dans l'app | Effet |
+|---|---|
+| Bouton stop apparu | `UserPromptSubmit` sur `agent_claude-desktop` ou `agent_chatgpt-desktop` : Mochi réfléchit, étape = titre de la conversation, sinon « Writing an answer… » |
+| Invite d'outil (Claude) | état `approval`, étape « ⏳ Approval pending in Claude », badge et son `question` |
+| Invite disparue, réponse en cours | badge retiré, état `thinking` |
+| Plus de bouton stop deux passages de suite | `Stop` : « Answer ready · <titre> », vue Terminé « <app> answered » avec « Open Claude » / « Open ChatGPT » |
+| 8 passages de suite sans rien reconnaître pendant une réponse (fenêtre fermée…) | `Stop`, pour ne pas réfléchir indéfiniment |
+| App quittée pendant une réponse, ou option coupée | `SessionEnd` |
+
+- `session_id` = `chat-claude-desktop` / `chat-chatgpt-desktop`.
+- App au premier plan à ce moment-là : champ `coucou_quiet` → l'état de Mochi change, mais ni son, ni badge, ni dépliage de l'île.
+- Pas de doublon avec l'onglet Code : tant que les hooks taguées `claude-desktop` signalent un tour en cours (ou ont parlé il y a moins de 10 s), l'observateur se tait (`HookServer.hasLiveHookSession`).
+
+---
+
 ## 2. n8n (workflows de Louis)
 
 - Réglages : URL de l'instance (probablement `https://n8nlouis.dcsys.tech`, **à confirmer avec Louis**) et clé API n8n (Trousseau). La clé se crée dans n8n : Settings → n8n API.

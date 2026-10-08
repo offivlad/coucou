@@ -269,6 +269,8 @@ struct OverviewView: View {
             #endif
         case "agent_claude-desktop":
             openClaudeDesktopApp()
+        case "agent_chatgpt-desktop":
+            openChatGPTDesktopApp()
         case "agent_gemini", "agent_antigravity",
              "agent_copilot", "agent_muse", "agent_opencode", "agent_amp":
             #if !APPSTORE
@@ -708,6 +710,13 @@ private func openClaudeDesktopApp() {
     }
 }
 
+/// Brings the ChatGPT desktop app forward (or launches it) — target of the ChatGPT pill.
+private func openChatGPTDesktopApp() {
+    if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.openai.chat") {
+        NSWorkspace.shared.openApplication(at: url, configuration: .init(), completionHandler: nil)
+    }
+}
+
 // MARK: - Finished
 
 struct FinishedView: View {
@@ -717,7 +726,9 @@ struct FinishedView: View {
         ZStack {
             CardBackground(wash: .green)
             VStack(alignment: .leading, spacing: 5) {
-                AgentWho(task: state.focusTask, label: "Claude Code finished")
+                AgentWho(task: state.focusTask,
+                         label: state.focusTask?.id != nil && state.focusTask?.id == state.chatAnswerPillId
+                            ? "answered" : "Claude Code finished")
                 Text({
                     if let fl = state.focusTask?.finalLine { return fl }
                     if let s = state.focusTask?.steps.last(where: { !$0.isDiffStep }) { return s }
@@ -731,6 +742,11 @@ struct FinishedView: View {
                         // Sessions from the Claude desktop app live there, not in a terminal.
                         PrimaryButton("Open Claude") {
                             openClaudeDesktopApp()
+                            NotificationCenter.default.post(name: .islandCollapse, object: nil)
+                        }
+                    } else if state.focusTask?.id == "agent_chatgpt-desktop" {
+                        PrimaryButton("Open ChatGPT") {
+                            openChatGPTDesktopApp()
                             NotificationCenter.default.post(name: .islandCollapse, object: nil)
                         }
                     } else {
@@ -1924,6 +1940,12 @@ struct IntegrationCardView: View {
             #endif
         case "agent_claude-desktop":
             return true  // nothing to install: the relay tags desktop sessions on its own
+        case "agent_chatgpt-desktop":
+            #if !APPSTORE
+            return ChatAppWatcher.isEnabled && ChatAppWatcher.isTrusted
+            #else
+            return false
+            #endif
         case "integration_music":
             #if !APPSTORE
             return true  // Apple Music is always installed on macOS
@@ -2104,6 +2126,7 @@ struct IntegrationCardView: View {
             if isHooks { return String(localized: "Hooks installed") }
             // No key or poller behind this pill: it only reflects hook events.
             if task.id == "agent_claude-desktop" { return String(localized: "Ready · no setup needed") }
+            if task.id == "agent_chatgpt-desktop" { return String(localized: "Watching the ChatGPT app") }
             if isAI {
                 let provider = ChatProvider(pillID: task.id)!
                 if provider.isLocal {
@@ -2122,6 +2145,7 @@ struct IntegrationCardView: View {
             return String(localized: "Connected · loading…")
         } else {
             if isHooks { return String(localized: "Hooks not installed") }
+            if task.id == "agent_chatgpt-desktop" { return String(localized: "Turn on in Settings → Agents") }
             if isAI {
                 let provider = ChatProvider(pillID: task.id)!
                 return provider.isLocal ? String(localized: "Not connected") : String(localized: "Key not configured")

@@ -82,6 +82,8 @@ struct SettingsView: View {
     @State private var showHermesConfigDiff: Bool = false
     @State private var pendingHermesConfigContent: String = ""
     @AppStorage("hermesApprovalsEnabled") private var hermesApprovalsEnabled: Bool = false
+    @State private var chatAppsEnabled: Bool = false
+    @State private var chatAppsTrusted: Bool = false
     @State private var hermesSupportsApprovals: Bool = false
     #endif
 
@@ -952,6 +954,50 @@ struct SettingsView: View {
             await MainActor.run { hermesSupportsApprovals = result }
         }
         #endif
+
+        GroupBox("Claude & ChatGPT apps") {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Mochi thinks while the Claude or ChatGPT desktop app writes an answer, and tells you when it's ready, or when Claude waits for you to allow a tool. Coucou reads the apps' buttons and window title through Accessibility: it never clicks, types or sends anything, and nothing leaves your Mac. Claude Code sessions from the Claude app's Code tab show up without this.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Toggle("Watch the Claude and ChatGPT apps", isOn: Binding(
+                    get: { chatAppsEnabled },
+                    set: { on in
+                        chatAppsEnabled = on
+                        ChatAppWatcher.shared.setEnabled(on)
+                        chatAppsTrusted = ChatAppWatcher.isTrusted
+                    }
+                ))
+                if chatAppsEnabled && !chatAppsTrusted {
+                    HStack(spacing: 10) {
+                        Text("Allow Coucou in System Settings → Privacy & Security → Accessibility.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Open System Settings") {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            }
+            .padding(6)
+        }
+        .task {
+            // Accessibility is granted in System Settings: follow it while this page is open.
+            chatAppsEnabled = ChatAppWatcher.isEnabled
+            while !Task.isCancelled {
+                let trusted = ChatAppWatcher.isTrusted
+                if trusted != chatAppsTrusted {
+                    chatAppsTrusted = trusted
+                    ChatAppWatcher.shared.evaluate()
+                }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
 
         GroupBox(String(localized: "plan.title")) {
             VStack(alignment: .leading, spacing: 10) {
@@ -2180,6 +2226,9 @@ struct SettingsView: View {
             if def.id == "agent_opencode"      && !HookServer.openCodePluginInstalled()  { return String(localized: "Plugin not installed") }
             if def.id == "agent_amp"           && !HookServer.ampPluginInstalled()       { return String(localized: "Plugin not installed") }
             if def.id == SpotifyController.pillId && !SpotifyController.shared.isInstalled { return String(localized: "Not installed") }
+            if def.id == "agent_chatgpt-desktop" && !(ChatAppWatcher.isEnabled && ChatAppWatcher.isTrusted) {
+                return String(localized: "Turn on in Settings → Agents")
+            }
             #endif
             if def.category == .ai {
                 if let provider = ChatProvider(pillID: def.id), provider.isLocal {
