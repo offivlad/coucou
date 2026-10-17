@@ -729,12 +729,11 @@ final class HookServer: @unchecked Sendable {
                                                  command: detail.map { String($0.prefix(160)) }
                                                     ?? String(localized: "\(appName) wants to use a tool"),
                                                  inputKey: "", pillId: id, projectName: appName)
-            if !quiet {
-                state.isPinned = true
-                if focusBeforeApproval == nil { focusBeforeApproval = state.focusId }
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = id }
-                expandIfNeeded(to: .approval)
-            }
+            // Always shown, even with the app in front: the card's buttons answer the prompt.
+            state.isPinned = true
+            if focusBeforeApproval == nil { focusBeforeApproval = state.focusId }
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = id }
+            expandIfNeeded(to: .approval)
         }
         #endif
         guard !quiet else { return }
@@ -774,8 +773,7 @@ final class HookServer: @unchecked Sendable {
         state.pendingApproval = ApprovalInfo(sessionId: Self.chatWaitingPrefix + agent, tool: "chat-waiting",
                                              command: String(localized: "«\(chatTitle)» is waiting for your answer"),
                                              inputKey: "", pillId: id, projectName: chatTitle)
-        guard !quiet else { return }
-        SoundEngine.shared.play("question")
+        if !quiet { SoundEngine.shared.play("question") }
         state.isPinned = true
         if focusBeforeApproval == nil { focusBeforeApproval = state.focusId }
         withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = id }

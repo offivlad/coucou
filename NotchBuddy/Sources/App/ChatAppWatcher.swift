@@ -73,7 +73,7 @@ private final class ChatAppScanner: @unchecked Sendable {
     private static let boxScanBudget  = 400
     private static let maxDepth       = 64
     /// Wall-clock cap of one walk: an app that answers slowly must not hold the queue.
-    private static let walkDeadline: TimeInterval = 1.0
+    private static let walkDeadline: TimeInterval = 2.5
     /// Without a known message box, walk the whole window at most this often, backing off
     /// up to a minute while the box stays out of sight (no window, a settings page…).
     private static let fullScanInterval: TimeInterval = 5
@@ -647,7 +647,14 @@ final class ChatAppWatcher {
         }
 
         // Every chat: from the sidebar when it shows, else the open chat alone.
+        // Once the sidebar has been seen, a scan that missed it (cut short, app busy) changes
+        // nothing: falling back to the open chat alone would report a false "ready".
+        if result.chats == nil, sidebarSeen[app] == true, Date().timeIntervalSince(sidebarSeenAt[app] ?? .distantPast) < 30 {
+            return
+        }
         if var chats = result.chats {
+            sidebarSeen[app] = true
+            sidebarSeenAt[app] = Date()
             // The open chat writing an answer counts even when its row shows no status.
             if result.signal == .generating, let title, chats[title] == nil { chats[title] = .running }
             applyChatList(chats, app: app, quiet: quiet)
@@ -673,6 +680,8 @@ final class ChatAppWatcher {
     }
 
     private var listTrackers: [ChatApp: ChatListTracker] = [:]
+    private var sidebarSeen: [ChatApp: Bool] = [:]
+    private var sidebarSeenAt: [ChatApp: Date] = [:]
 
     /// Several chats at once: one pill, a step per chat, a sound and a card when one ends or
     /// waits for the user; the pill rests when none is left.

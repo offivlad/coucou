@@ -166,6 +166,8 @@ enum ChatAppWatcherTests {
         precondition(ChatAppWatcherLogic.isPromptCard("Запрос разрешения: Веб-запрос"), "prompt card")
         precondition(ChatAppWatcherLogic.isWebPromptKind("Запрос разрешения: Веб-запрос"), "web prompt")
         precondition(!ChatAppWatcherLogic.isWebPromptKind("Запрос разрешения: WordPress"), "mcp prompt")
+        precondition(ChatAppWatcherLogic.isWebPrompt("Запрос разрешения: Navigate Url https://podbor-auto.by/"), "chrome navigate")
+        precondition(!ChatAppWatcherLogic.isWebPrompt("Запрос разрешения: Javascript tool Action javascript_exec"), "js is not web")
 
         var t = ChatListTracker()
         precondition(t.update(["A": .running, "B": .waiting]) == [.started("A"), .waiting("B")], "first scan")

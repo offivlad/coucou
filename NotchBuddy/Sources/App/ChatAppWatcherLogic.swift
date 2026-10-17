@@ -170,7 +170,8 @@ enum ChatAppWatcherLogic {
         guard let text else { return false }
         let t = normalize(text)
         let marks = ["веб-страниц", "веб страниц", "web page", "webpage", "web search", "search the web",
-                     "поиск в интернете", "искать в интернете", "fetch", "page web", "recherche web"]
+                     "поиск в интернете", "искать в интернете", "fetch", "page web", "recherche web",
+                     "navigate", "открыть страницу", "url http"]
         return marks.contains { t.contains($0) }
     }
 
@@ -297,7 +298,7 @@ extension ChatAppWatcherLogic {
     static func isWebPromptKind(_ desc: String?) -> Bool {
         guard let desc else { return false }
         let d = normalize(desc)
-        return ["веб", "web", "fetch", "url"].contains { d.contains($0) }
+        return ["веб", "web", "fetch", "url", "navigate"].contains { d.contains($0) }
     }
 
     /// The prompt card's own label: "Запрос разрешения: …" / "Permission request: …".
