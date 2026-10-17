@@ -82,7 +82,7 @@ enum ChatAppWatcherTests {
     static func testSignal() {
         typealias L = ChatAppWatcherLogic
         precondition(L.signal(for: [.stop, .composer], complete: false, app: .claude) == .generating, "stop → generating")
-        precondition(L.signal(for: [.send], complete: false, app: .chatgpt) == .idle, "send → idle")
+        precondition(L.signal(for: [.send], complete: false, app: .chatgpt) == .unknown, "send in a cut-short scan proves nothing")
         precondition(L.signal(for: [.composer], complete: true, app: .chatgpt) == .idle, "full scan, no stop → idle")
         precondition(L.signal(for: [.composer], complete: false, app: .chatgpt) == .unknown, "partial scan → unknown")
         precondition(L.signal(for: [], complete: false, app: .claude) == .unknown, "nothing → unknown")

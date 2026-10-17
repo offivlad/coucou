@@ -161,7 +161,8 @@ enum ChatAppWatcherLogic {
             if hasOnce || (hasAlways && hasDeny) { return .needsApproval }
         }
         if kinds.contains(.stop) { return .generating }
-        if complete || kinds.contains(.send) { return .idle }
+        // Idle only from a complete walk: a send button met in a cut-short one proves nothing.
+        if complete { return .idle }
         return .unknown
     }
 

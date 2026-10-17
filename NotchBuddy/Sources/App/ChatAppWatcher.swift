@@ -27,8 +27,14 @@ private final class ChatAppScanner: @unchecked Sendable {
         var promptText: String? = nil
         /// Every chat the sidebar shows as running or waiting; nil when the sidebar is hidden.
         var chats: [String: ChatRowStatus]? = nil
-        /// Sidebar row button of each listed chat, to open it.
         var promptIsWeb = false
+        /// The walk went through the whole window: absences mean something.
+        var scanComplete = false
+        /// A permission prompt was found in this scan.
+        var promptSeen = false
+
+        /// The prompt is confirmed gone: a complete scan that did not find it.
+        var promptConfirmedGone: Bool { scanComplete && !promptSeen }
     }
 
     let queue = DispatchQueue(label: "fr.louisraille.coucou.chat-apps", qos: .utility)
@@ -120,6 +126,7 @@ private final class ChatAppScanner: @unchecked Sendable {
         var kinds: [ChatButtonKind] = []
         var promptText: String? = nil
         var complete = false
+        var promptSeen = false
         var chats: [String: ChatRowStatus]? = nil
         var promptIsWeb = false
 
@@ -131,6 +138,7 @@ private final class ChatAppScanner: @unchecked Sendable {
             kinds = walk.kinds
             complete = walk.complete
             promptButtons[pid] = walk.prompt.isEmpty ? nil : walk.prompt
+            promptSeen = walk.promptLabel != nil || !walk.prompt.isEmpty
             if let box = walk.promptBox { promptText = texts(in: box) }
             if let label = walk.promptLabel {
                 promptIsWeb = ChatAppWatcherLogic.isWebPromptKind(label)
@@ -139,7 +147,12 @@ private final class ChatAppScanner: @unchecked Sendable {
             } else {
                 promptIsWeb = ChatAppWatcherLogic.isWebPrompt(promptText)
             }
-            if walk.sidebarSeen {
+            if walk.sidebarSeen && !walk.complete {
+                appendAppLog("nb.log", "[ChatApps] incomplete sidebar scan; previous chat states kept")
+            }
+            // Only a complete walk lists every chat: a cut-short one would make the chats it
+            // did not reach look finished.
+            if walk.complete && walk.sidebarSeen {
                 var seen: [String: ChatRowStatus] = [:]
                 for (row, label) in walk.rowStatuses {
                     guard let status = ChatRowStatus(statusLabel: label), let title = rowTitle(row) else { continue }
@@ -153,7 +166,8 @@ private final class ChatAppScanner: @unchecked Sendable {
         diagnose(pid: pid, app: app, signal: signal)
         return Result(signal: signal, title: ChatAppWatcherLogic.conversationTitle(title, app: app),
                       promptText: signal == .needsApproval ? promptText : nil,
-                      chats: chats, promptIsWeb: promptIsWeb)
+                      chats: chats, promptIsWeb: promptIsWeb,
+                      scanComplete: complete, promptSeen: promptSeen)
     }
 
     // MARK: - Diagnostic map
@@ -522,7 +536,7 @@ final class ChatAppWatcher {
                 // The app is in front: its own shortcut is the surest way.
                 Self.sendShortcut(kind, to: nil)
                 Thread.sleep(forTimeInterval: 0.8)
-                let gone = scanner.scan(pid: pid, app: app, wantsFullScan: true).signal != .needsApproval
+                let gone = scanner.scan(pid: pid, app: app, wantsFullScan: true).promptConfirmedGone
                 appendAppLog("nb.log", "Chat app prompt answered by shortcut (app in front): \(gone ? "done" : "prompt still there")")
                 DispatchQueue.main.async { MainActor.assumeIsolated { done(gone) } }
                 return
@@ -530,7 +544,7 @@ final class ChatAppWatcher {
             var pressed = scanner.press(pid: pid, kind: kind)
             if !pressed, kind == .allowOnce { pressed = scanner.press(pid: pid, kind: .allowAlways) }
             Thread.sleep(forTimeInterval: 0.8)
-            if scanner.scan(pid: pid, app: app, wantsFullScan: true).signal != .needsApproval {
+            if scanner.scan(pid: pid, app: app, wantsFullScan: true).promptConfirmedGone {
                 appendAppLog("nb.log", "Chat app prompt answered by Accessibility press")
                 DispatchQueue.main.async { MainActor.assumeIsolated { done(true) } }
                 return
@@ -538,7 +552,7 @@ final class ChatAppWatcher {
             // Accessibility press had no effect: the prompt's keyboard shortcut, to the app.
             Self.sendShortcut(kind, to: pid)
             Thread.sleep(forTimeInterval: 0.8)
-            if scanner.scan(pid: pid, app: app, wantsFullScan: true).signal != .needsApproval {
+            if scanner.scan(pid: pid, app: app, wantsFullScan: true).promptConfirmedGone {
                 appendAppLog("nb.log", "Chat app prompt answered by shortcut sent to the app")
                 DispatchQueue.main.async { MainActor.assumeIsolated { done(true) } }
                 return
@@ -550,7 +564,7 @@ final class ChatAppWatcher {
             Thread.sleep(forTimeInterval: 0.35)
             Self.sendShortcut(kind, to: nil)
             Thread.sleep(forTimeInterval: 0.8)
-            let gone = scanner.scan(pid: pid, app: app, wantsFullScan: true).signal != .needsApproval
+            let gone = scanner.scan(pid: pid, app: app, wantsFullScan: true).promptConfirmedGone
             appendAppLog("nb.log", "Chat app prompt answered after bringing the app forward: \(gone ? "done" : "prompt still there")")
             // Give the front back to the app the user was in.
             if let previous, previous != pid {
