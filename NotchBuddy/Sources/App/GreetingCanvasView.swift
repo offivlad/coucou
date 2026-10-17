@@ -642,18 +642,38 @@ struct GreetingCanvasView: View {
     var body: some View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSince(startDate)
+            let compact = IslandRestingLayout(width: state.notchWidth + 160, height: state.notchHeight)
             Canvas { context, size in
                 context.withCGContext { cgCtx in
-                    drawGreeting(cgCtx, size: size, t: t, tc: tc,
-                                 compact: IslandRestingLayout(width: state.notchWidth + 160,
-                                                              height: state.notchHeight))
+                    drawGreeting(cgCtx, size: size, t: t, tc: tc, compact: compact)
                 }
+            }
+            .overlay(alignment: .topLeading) {
+                // "Good evening, Vlad!" on the right of Mochi while the card is up.
+                let card = pose(t, tc: tc, compact: compact).card
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(greetingLine)
+                        .font(.system(size: 19, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color(white: 0.96))
+                    Text(dateLine)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(Color(white: 0.62))
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(width: 236, alignment: .leading)
+                .opacity(card * gSeg(t, 0.55, 0.95))
+                .offset(x: 6 * (1 - gSeg(t, 0.55, 0.95)))
+                .position(x: 494, y: 88)
+                .allowsHitTesting(false)
             }
             .onChange(of: !greetFired && t >= GT.end && tc >= GT.autoLeave) { _, trigger in
                 if trigger { fireGreetComplete() }
             }
         }
         .onAppear {
+            greetingLine = GreetingWords.line()
+            dateLine = GreetingWords.date()
             startDate = Date()
             tc = .infinity
             greetFired = false
@@ -679,11 +699,49 @@ struct GreetingCanvasView: View {
         }
     }
 
+    @State private var greetingLine = GreetingWords.line()
+    @State private var dateLine = GreetingWords.date()
+
     private func fireGreetComplete() {
         guard !greetFired else { return }
         greetFired = true
         doneWork?.cancel(); doneWork = nil
         // Note: greeting music continues for ~0.3 s after greetComplete — intentional queue overlap
         NotificationCenter.default.post(name: .greetComplete, object: nil)
+    }
+}
+
+// MARK: - Greeting words
+
+/// "Good morning / afternoon / evening / night" by the hour, with the user's name.
+enum GreetingWords {
+    /// UserDefaults key of the name typed in Settings → General → Greeting.
+    static let nameKey = "greetingName"
+
+    static var name: String? {
+        let typed = (UserDefaults.standard.string(forKey: nameKey) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return typed.isEmpty ? resolveUserFirstName() : typed
+    }
+
+    static func line(at date: Date = Date()) -> String {
+        let hour = Calendar.current.component(.hour, from: date)
+        let hello: String
+        switch hour {
+        case 5..<12:  hello = String(localized: "greeting.morning")
+        case 12..<17: hello = String(localized: "greeting.afternoon")
+        case 17..<23: hello = String(localized: "greeting.evening")
+        default:      hello = String(localized: "greeting.night")
+        }
+        guard let name else { return hello + "!" }
+        return String(format: String(localized: "greeting.with-name %@ %@"), hello, name)
+    }
+
+    static func date(_ date: Date = Date()) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? "en")
+        f.setLocalizedDateFormatFromTemplate("EEEEdMMMM")
+        let text = f.string(from: date)
+        return text.prefix(1).uppercased() + text.dropFirst()
     }
 }

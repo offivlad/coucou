@@ -5,6 +5,7 @@ import AppKit
 struct SettingsView: View {
     @ObservedObject private var state = AppState.shared
     @ObservedObject private var demoEngine = DemoEngine.shared
+    @AppStorage(GreetingWords.nameKey) private var greetingName: String = ""
     @State private var apiKey: String = KeychainStore.shared.get("anthropic-api-key") ?? ""
 
     // Claude model — dynamic list fetched from the API, static fallback if unavailable
@@ -448,6 +449,20 @@ struct SettingsView: View {
                 Toggle(String(localized: "Hide project names in shared images"), isOn: $state.recapHideProjects)
                     .disabled(!state.recapEnabled)
                 Button(String(localized: "Clear history")) { RecapStore.shared.clearHistory() }
+            }
+            .padding(6)
+        }
+
+        GroupBox(String(localized: "Greeting")) {
+            VStack(alignment: .leading, spacing: 10) {
+                TextField(resolveUserFirstName() ?? String(localized: "Your name"), text: $greetingName)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 260)
+                Text(String(format: String(localized: "When Coucou starts, Mochi says: %@"), GreetingWords.line()))
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .id(greetingName)
             }
             .padding(6)
         }
