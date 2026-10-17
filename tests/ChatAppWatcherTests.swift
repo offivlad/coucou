@@ -9,6 +9,7 @@ enum ChatAppWatcherTests {
         testConversationTitle()
         testTracker()
         testChatList()
+        testChatRows()
         print("ChatAppWatcherLogic: all cases passed")
     }
 
@@ -180,5 +181,31 @@ enum ChatAppWatcherTests {
         precondition(t.update(["B": .waiting]) == [.waiting("B")], "B waits")
         precondition(t.update([:]).isEmpty && t.update([:]) == [.finished("B")], "B done")
         precondition(!t.isActive, "all done")
+    }
+
+    static func testChatRows() {
+        func r(_ id: String, _ t: String, _ s: ChatRowStatus?) -> ChatRow { ChatRow(id: id, title: t, status: s) }
+        precondition(ChatAppWatcherLogic.rowTitle(fromOptionsLabel: "Дополнительные параметры: Автопром Албании") == "Автопром Албании", "row title")
+        precondition(ChatAppWatcherLogic.rowTitle(fromOptionsLabel: "Другие пункты навигации") == nil, "not a row")
+        var t = ChatRowsTracker()
+        let t0 = Date()
+        precondition(t.update([r("1", "A", .running), r("2", "B", .waiting), r("3", "C", nil)], at: t0)
+                     == [.started("A"), .waiting("B")], "first scan")
+        // A out of sight: absence is not completion.
+        precondition(t.update([r("2", "B", .running)], at: t0).isEmpty == false, "B resumes")
+        precondition(t.update([r("2", "B", .running)], at: t0).isEmpty, "A unseen: nothing")
+        precondition(t.running == ["A", "B"], "A still running while unseen")
+        // A seen without status twice: finished.
+        precondition(t.update([r("1", "A", nil)], at: t0).isEmpty, "A quiet once")
+        precondition(t.update([r("1", "A", nil)], at: t0) == [.finished("A")], "A quiet twice: finished")
+        // Rename keeps the chat.
+        precondition(t.update([r("2", "B2", .running)], at: t0) == [.renamed(from: "B", to: "B2")], "renamed")
+        precondition(t.running == ["B2"], "same chat, new title")
+        // Same title, two chats: tracked apart.
+        precondition(t.update([r("4", "Новый чат", .running), r("5", "Новый чат", .running)], at: t0).count == 2, "twins")
+        // Long out of sight: forgotten without a false finish.
+        let later = t0.addingTimeInterval(31 * 60)
+        precondition(t.update([r("5", "Новый чат", .running)], at: later).isEmpty, "no event when forgetting")
+        precondition(t.running == ["Новый чат"], "only the one still seen remains")
     }
 }

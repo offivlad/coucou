@@ -25,8 +25,9 @@ private final class ChatAppScanner: @unchecked Sendable {
         let title: String?
         /// Texts of the tool prompt (its title, the URL…), when one is showing.
         var promptText: String? = nil
-        /// Every chat the sidebar shows as running or waiting; nil when the sidebar is hidden.
-        var chats: [String: ChatRowStatus]? = nil
+        /// Every chat row the sidebar shows, with its status; nil when the sidebar is hidden
+        /// or the walk was cut short.
+        var rows: [ChatRow]? = nil
         var promptIsWeb = false
         /// The walk went through the whole window: absences mean something.
         var scanComplete = false
@@ -47,6 +48,14 @@ private final class ChatAppScanner: @unchecked Sendable {
     private var accessibilityAsked: Set<pid_t> = []
     /// Sidebar row button of each chat seen running or waiting, to open it from the notch.
     private var rowButtons: [pid_t: [String: AXUIElement]] = [:]
+
+    /// The DOM id of an element ("base-ui-_r_1j_"), stable while the row lives.
+    private func domId(_ el: AXUIElement) -> String? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(el, "AXDOMIdentifier" as CFString, &ref) == .success,
+              let id = ref as? String, !id.isEmpty else { return nil }
+        return id
+    }
 
     /// The title of a sidebar row: its button's title.
     private func rowTitle(_ row: AXUIElement) -> String? {
@@ -127,7 +136,7 @@ private final class ChatAppScanner: @unchecked Sendable {
         var promptText: String? = nil
         var complete = false
         var promptSeen = false
-        var chats: [String: ChatRowStatus]? = nil
+        var rows: [ChatRow]? = nil
         var promptIsWeb = false
 
         // The whole window every time (the transcript is skipped, so it stays small): the
@@ -153,20 +162,21 @@ private final class ChatAppScanner: @unchecked Sendable {
             // Only a complete walk lists every chat: a cut-short one would make the chats it
             // did not reach look finished.
             if walk.complete && walk.sidebarSeen {
-                var seen: [String: ChatRowStatus] = [:]
-                for (row, label) in walk.rowStatuses {
-                    guard let status = ChatRowStatus(statusLabel: label), let title = rowTitle(row) else { continue }
-                    seen[title] = status
-                    rowButtons[pid, default: [:]][title] = rowButton(row)
+                var list: [ChatRow] = []
+                for row in walk.rows {
+                    let label = walk.rowStatuses.first { CFEqual($0.row, row.hit) }?.label
+                    let id = row.idHolder.flatMap { domId($0) } ?? "title:" + row.title
+                    list.append(ChatRow(id: id, title: row.title, status: label.flatMap(ChatRowStatus.init(statusLabel:))))
+                    rowButtons[pid, default: [:]][row.title] = rowButton(row.hit)
                 }
-                chats = seen
+                rows = list
             }
         }
         let signal = ChatAppWatcherLogic.signal(for: kinds, complete: complete, app: app)
         diagnose(pid: pid, app: app, signal: signal)
         return Result(signal: signal, title: ChatAppWatcherLogic.conversationTitle(title, app: app),
                       promptText: signal == .needsApproval ? promptText : nil,
-                      chats: chats, promptIsWeb: promptIsWeb,
+                      rows: rows, promptIsWeb: promptIsWeb,
                       scanComplete: complete, promptSeen: promptSeen)
     }
 
@@ -255,6 +265,9 @@ private final class ChatAppScanner: @unchecked Sendable {
         var promptLabel: String? = nil
         /// Sidebar statuses met: the row that holds each, and its label.
         var rowStatuses: [(row: AXUIElement, label: String)] = []
+        /// Every chat row of the sidebar met: its hit-row element, the element holding its
+        /// DOM id, and its title (from its "More options: <title>" button).
+        var rows: [(hit: AXUIElement, idHolder: AXUIElement?, title: String)] = []
         var sidebarSeen = false
     }
 
@@ -264,12 +277,14 @@ private final class ChatAppScanner: @unchecked Sendable {
         let grandparent: AXUIElement?
         var ancestors: [AXUIElement] = []
         let depth: Int
+        var inSidebar = false
     }
 
     /// Depth-first, last child first: both apps put the message box and their dialogs at
     /// the end of the window, after the conversation, so they come up early.
     private func walk(from roots: [AXUIElement], budget: Int) -> Walk {
         var result = Walk()
+        var sidebarRoot: AXUIElement? = nil
         var stack = roots.map { Visit(element: $0, parent: nil, grandparent: nil, ancestors: [], depth: 0) }
         var visited = 0
         let deadline = Date().addingTimeInterval(Self.walkDeadline)
@@ -291,12 +306,21 @@ private final class ChatAppScanner: @unchecked Sendable {
             let role = values[0] as? String ?? ""
             let subrole = values[5] as? String ?? ""
             let desc = values[1] as? String ?? ""
+            if visit.inSidebar, role == "AXPopUpButton", let title = ChatAppWatcherLogic.rowTitle(fromOptionsLabel: desc),
+               let hit = visit.grandparent {
+                let n = visit.ancestors.count
+                result.rows.append((hit, n >= 3 ? visit.ancestors[n - 3] : nil, title))
+                continue
+            }
             if role == "AXGroup", !desc.isEmpty {
                 if subrole == "AXApplicationStatus", let row = visit.parent {
                     result.rowStatuses.append((row, desc))
                     continue
                 }
-                if subrole == "AXLandmarkComplementary", ChatAppWatcherLogic.isSidebar(desc) { result.sidebarSeen = true }
+                if subrole == "AXLandmarkComplementary", ChatAppWatcherLogic.isSidebar(desc) {
+                    result.sidebarSeen = true
+                    sidebarRoot = visit.element
+                }
                 if subrole == "AXApplicationGroup" {
                     if ChatAppWatcherLogic.isTranscript(desc) { continue }   // the messages: thousands of elements
                     if ChatAppWatcherLogic.isPromptCard(desc), result.promptLabel == nil {
@@ -329,7 +353,8 @@ private final class ChatAppScanner: @unchecked Sendable {
                 stack.append(Visit(element: child, parent: visit.element,
                                    grandparent: visit.parent,
                                    ancestors: Array((visit.ancestors + [visit.element]).suffix(6)),
-                                   depth: visit.depth + 1))
+                                   depth: visit.depth + 1,
+                                   inSidebar: visit.inSidebar || (sidebarRoot.map { CFEqual($0, visit.element) } ?? false)))
             }
         }
         result.complete = true
@@ -622,7 +647,7 @@ final class ChatAppWatcher {
         // its hooks: let them speak, and do not report the same answer twice.
         if HookServer.shared.hasLiveHookSession(agent: app.agentTag) {
             trackers[app]?.reset()
-            listTrackers[app]?.reset()
+            rowTrackers[app]?.reset()
             return
         }
         if let title = result.title { titles[app] = title }
@@ -668,15 +693,18 @@ final class ChatAppWatcher {
         // Every chat: from the sidebar when it shows, else the open chat alone.
         // Once the sidebar has been seen, a scan that missed it (cut short, app busy) changes
         // nothing: falling back to the open chat alone would report a false "ready".
-        if result.chats == nil, sidebarSeen[app] == true, Date().timeIntervalSince(sidebarSeenAt[app] ?? .distantPast) < 30 {
+        if result.rows == nil, sidebarSeen[app] == true, Date().timeIntervalSince(sidebarSeenAt[app] ?? .distantPast) < 30 {
             return
         }
-        if var chats = result.chats {
+        if var rows = result.rows {
             sidebarSeen[app] = true
             sidebarSeenAt[app] = Date()
             // The open chat writing an answer counts even when its row shows no status.
-            if result.signal == .generating, let title, chats[title] == nil { chats[title] = .running }
-            applyChatList(chats, app: app, quiet: quiet)
+            if result.signal == .generating, let title, let i = rows.firstIndex(where: { $0.title == title }),
+               rows[i].status == nil {
+                rows[i] = ChatRow(id: rows[i].id, title: title, status: .running)
+            }
+            applyChatRows(rows, app: app, quiet: quiet)
             return
         }
         for event in events {
@@ -703,12 +731,12 @@ final class ChatAppWatcher {
     private var sidebarSeenAt: [ChatApp: Date] = [:]
 
     /// Several chats at once: one pill, a step per chat, a sound and a card when one ends or
-    /// waits for the user; the pill rests when none is left.
-    private func applyChatList(_ chats: [String: ChatRowStatus], app: ChatApp, quiet: Bool) {
-        var list = listTrackers[app] ?? ChatListTracker()
+    /// waits for the user; the pill rests only when no known chat is left.
+    private func applyChatRows(_ rows: [ChatRow], app: ChatApp, quiet: Bool) {
+        var list = rowTrackers[app] ?? ChatRowsTracker()
         let wasActive = list.isActive
-        let events = list.update(chats)
-        listTrackers[app] = list
+        let events = list.update(rows)
+        rowTrackers[app] = list
         // No chat waits any more: a "waiting" card left behind goes.
         if list.waiting.isEmpty { HookServer.shared.closeChatWaitingCard(agent: app.agentTag, title: nil) }
         guard !events.isEmpty else { return }
@@ -730,6 +758,8 @@ final class ChatAppWatcher {
                 HookServer.shared.closeChatWaitingCard(agent: app.agentTag, title: t)
             case .waiting(let t):
                 HookServer.shared.chatAppWaiting(agent: app.agentTag, chatTitle: t, quiet: quiet)
+            case .renamed(_, let to):
+                HookServer.shared.chatAppStep(agent: app.agentTag, step: "▶ \(to)", working: false)
             case .finished(let t):
                 HookServer.shared.closeChatWaitingCard(agent: app.agentTag, title: t)
                 if list.isActive {
@@ -745,6 +775,8 @@ final class ChatAppWatcher {
             }
         }
     }
+
+    private var rowTrackers: [ChatApp: ChatRowsTracker] = [:]
 
     /// Opens a chat of the app (its sidebar row) and brings the app forward.
     func openChat(_ app: ChatApp, title: String) {

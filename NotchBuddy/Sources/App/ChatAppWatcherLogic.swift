@@ -315,6 +315,18 @@ extension ChatAppWatcherLogic {
         return d == "сообщения в чате" || d == "chat messages" || d == "messages"
     }
 
+    /// "Дополнительные параметры: Статья про автопром" → "Статья про автопром": the title of
+    /// a sidebar row, from its options button (every row has one, with or without a status).
+    static func rowTitle(fromOptionsLabel raw: String) -> String? {
+        for prefix in ["Дополнительные параметры: ", "More options for ", "More options: ", "Plus d'options pour ", "Options : "] {
+            if raw.hasPrefix(prefix) {
+                let t = String(raw.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+                return t.isEmpty ? nil : t
+            }
+        }
+        return nil
+    }
+
     /// The sidebar landmark.
     static func isSidebar(_ desc: String) -> Bool {
         let d = normalize(desc)
@@ -369,5 +381,84 @@ struct ChatListTracker: Sendable {
     mutating func reset() {
         states = [:]
         missing = [:]
+    }
+}
+
+// MARK: - Sidebar rows, by identity
+
+/// One chat row as the sidebar shows it: a stable id (the row's DOM id, kept when the
+/// chat is renamed), its current title, and its status when it has one.
+struct ChatRow: Equatable, Sendable {
+    let id: String
+    let title: String
+    let status: ChatRowStatus?
+}
+
+/// Follows chats by row id. A chat ends only when its row is SEEN without a status
+/// `confirmations` scans in a row; a row out of sight (scrolled away, list not rendered)
+/// keeps its last state: absence is not completion. A renamed chat stays the same chat.
+struct ChatRowsTracker: Sendable {
+    enum Event: Equatable, Sendable {
+        case started(String)
+        case waiting(String)
+        case resumed(String)
+        case finished(String)
+        case renamed(from: String, to: String)
+    }
+
+    var confirmations = 2
+    /// Rows out of sight for this long are dropped without a "finished" (chat deleted).
+    var forgetAfter: TimeInterval = 30 * 60
+    private(set) var states: [String: (title: String, status: ChatRowStatus)] = [:]
+    private var quietCount: [String: Int] = [:]
+    private var lastSeen: [String: Date] = [:]
+
+    var running: [String] { states.values.filter { $0.status == .running }.map(\.title).sorted() }
+    var waiting: [String] { states.values.filter { $0.status == .waiting }.map(\.title).sorted() }
+    var isActive: Bool { !states.isEmpty }
+    func title(of id: String) -> String? { states[id]?.title }
+
+    mutating func update(_ rows: [ChatRow], at now: Date = Date()) -> [Event] {
+        var events: [Event] = []
+        for row in rows {
+            lastSeen[row.id] = now
+            let previous = states[row.id]
+            if let previous, previous.title != row.title {
+                events.append(.renamed(from: previous.title, to: row.title))
+                states[row.id] = (row.title, previous.status)
+            }
+            guard let status = row.status else {
+                // Seen, no status: finished once confirmed.
+                guard let tracked = states[row.id] else { continue }
+                let n = (quietCount[row.id] ?? 0) + 1
+                quietCount[row.id] = n
+                if n >= confirmations {
+                    states[row.id] = nil
+                    quietCount[row.id] = nil
+                    events.append(.finished(tracked.title))
+                }
+                continue
+            }
+            quietCount[row.id] = nil
+            switch (previous?.status, status) {
+            case (nil, .running):       events.append(.started(row.title))
+            case (nil, .waiting):       events.append(.waiting(row.title))
+            case (.running?, .waiting): events.append(.waiting(row.title))
+            case (.waiting?, .running): events.append(.resumed(row.title))
+            default: break
+            }
+            states[row.id] = (row.title, status)
+        }
+        for id in states.keys where now.timeIntervalSince(lastSeen[id] ?? now) > forgetAfter {
+            states[id] = nil
+            quietCount[id] = nil
+        }
+        return events
+    }
+
+    mutating func reset() {
+        states = [:]
+        quietCount = [:]
+        lastSeen = [:]
     }
 }
