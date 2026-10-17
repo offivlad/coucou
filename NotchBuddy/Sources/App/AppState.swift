@@ -478,6 +478,9 @@ final class AppState: ObservableObject {
     /// not a coding session: the finished card words it accordingly.
     @Published var chatAnswerPillId: String? = nil
 
+    /// Permission requests allowed by the auto-approve rules since Coucou started.
+    @Published var autoApprovedToday: Int = 0
+
     // Plan gauge: show pill in notch header — persisted
     #if !APPSTORE
     @Published var showPlanInNotch: Bool = false {

@@ -27,9 +27,10 @@ jobs:
       - name: Generate project
         run: cd NotchBuddy && xcodegen
 
-      - name: Tests (chat app watcher, Claude hooks)
+      - name: Tests (chat app watcher, auto-approve, Claude hooks)
         run: |
           bash scripts/test-chat-apps.sh
+          bash scripts/test-auto-approve.sh
           bash scripts/test-claude-hooks.sh
 
       - name: Build GitHub app (Release)

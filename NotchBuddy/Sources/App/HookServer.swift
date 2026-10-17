@@ -835,6 +835,27 @@ final class HookServer: @unchecked Sendable {
             termProgram.lowercased().contains("vscode") ||
             bundleId.lowercased().contains("vscode"))
 
+        // Auto-approve rules (Settings → Agents → Auto-approve): Claude Code requests whose
+        // tool is in a group that is on are allowed at once, without a card or a sound.
+        if rawAgent.isEmpty || rawAgent == ChatApp.claude.agentTag {
+            let autoTool = payload["tool_name"] as? String ?? ""
+            let autoInput = payload["tool_input"] as? [String: Any] ?? [:]
+            if let group = AutoApprove.allowingGroup(tool: autoTool, input: autoInput,
+                                                     enabled: AutoApproveGroup.enabled()) {
+                nbLog("PermissionRequest \(autoTool): auto-approved (\(group.rawValue))")
+                let pill = rawAgent.isEmpty ? (isCursorEditor ? "agent_cursor" : "integration_claude")
+                                            : ChatApp.claude.pillId
+                appendStep(id: pill, step: String(localized: "✓ Auto-approved: \(autoTool)"))
+                RecapStore.shared.recordDecision(pillId: pill, decision: "allow")
+                AppState.shared.autoApprovedToday += 1
+                Task.detached { [weak self] in
+                    self?.sendLine(fd: fd, text: #"{"permissionDecision":"allow"}"#)
+                    close(fd)
+                }
+                return
+            }
+        }
+
         // Codex, Copilot CLI and Muse Code get the same approval card as Claude Code / Cursor.
         // Other external agents (any other coucou_agent) answer immediately with "ask"
         // so the agent re-asks in its own terminal — they do not get a notch card.

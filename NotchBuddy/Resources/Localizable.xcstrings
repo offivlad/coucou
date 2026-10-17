@@ -45486,6 +45486,146 @@
           }
         }
       }
+    },
+    "Auto-approve" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автоодобрение"
+          }
+        }
+      }
+    },
+    "Claude Code requests Coucou allows on its own, without asking. Everything else still asks." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запросы Claude Code, которые Coucou одобряет сам, без вопросов. Всё остальное по-прежнему спрашивает."
+          }
+        }
+      }
+    },
+    "Allowed on its own since launch: %lld" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Одобрено само с запуска: %lld"
+          }
+        }
+      }
+    },
+    "Web search and pages" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск в интернете и сайты"
+          }
+        }
+      }
+    },
+    "Read and search files" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чтение и поиск по файлам"
+          }
+        }
+      }
+    },
+    "Edit files" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменение файлов"
+          }
+        }
+      }
+    },
+    "Terminal commands" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Команды терминала"
+          }
+        }
+      }
+    },
+    "Connected tools (MCP)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключённые инструменты (MCP)"
+          }
+        }
+      }
+    },
+    "WebSearch, WebFetch" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WebSearch, WebFetch"
+          }
+        }
+      }
+    },
+    "Read, Glob, Grep: nothing is changed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read, Glob, Grep: ничего не меняется"
+          }
+        }
+      }
+    },
+    "Edit, Write: changes files in your project" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit, Write: меняет файлы в проекте"
+          }
+        }
+      }
+    },
+    "Bash. Deleting, sudo, git push and the like still ask" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bash. Удаление, sudo, git push и подобное всё равно спрашивают"
+          }
+        }
+      }
+    },
+    "Any tool of a connected server, including ones that send or delete" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Любой инструмент подключённого сервера, в том числе те, что отправляют или удаляют"
+          }
+        }
+      }
+    },
+    "✓ Auto-approved: %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "✓ Одобрено само: %@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

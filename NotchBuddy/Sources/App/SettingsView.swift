@@ -6,6 +6,7 @@ struct SettingsView: View {
     @ObservedObject private var state = AppState.shared
     @ObservedObject private var demoEngine = DemoEngine.shared
     @AppStorage(GreetingWords.nameKey) private var greetingName: String = ""
+    @State private var autoApprove: Set<AutoApproveGroup> = AutoApproveGroup.enabled()
     @State private var apiKey: String = KeychainStore.shared.get("anthropic-api-key") ?? ""
 
     // Claude model — dynamic list fetched from the API, static fallback if unavailable
@@ -972,6 +973,37 @@ struct SettingsView: View {
         }
         #endif
 
+        GroupBox(String(localized: "Auto-approve")) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(String(localized: "Claude Code requests Coucou allows on its own, without asking. Everything else still asks."))
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(AutoApproveGroup.allCases, id: \.self) { group in
+                    Toggle(isOn: Binding(
+                        get: { autoApprove.contains(group) },
+                        set: { on in
+                            if on { autoApprove.insert(group) } else { autoApprove.remove(group) }
+                            AutoApproveGroup.setEnabled(autoApprove)
+                        }
+                    )) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(autoApproveTitle(group))
+                            Text(autoApproveDetail(group))
+                                .font(.system(size: 10))
+                                .foregroundColor(group == .terminal || group == .mcp ? .orange : .secondary)
+                        }
+                    }
+                }
+                if state.autoApprovedToday > 0 {
+                    Text(String(format: String(localized: "Allowed on its own since launch: %lld"), state.autoApprovedToday))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(6)
+        }
+
         GroupBox("Claude & ChatGPT apps") {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Mochi thinks while the Claude or ChatGPT desktop app writes an answer, and tells you when it's ready, or when Claude waits for you to allow a tool. Coucou reads the apps' buttons and window title through Accessibility: it never clicks, types or sends anything, and nothing leaves your Mac. Claude Code sessions from the Claude app's Code tab show up without this.")
@@ -1712,6 +1744,26 @@ struct SettingsView: View {
     // MARK: - App Store: hooks via NSOpenPanel + security-scoped bookmark
 
     #if APPSTORE
+    private func autoApproveTitle(_ group: AutoApproveGroup) -> String {
+        switch group {
+        case .web:      return String(localized: "Web search and pages")
+        case .read:     return String(localized: "Read and search files")
+        case .edit:     return String(localized: "Edit files")
+        case .terminal: return String(localized: "Terminal commands")
+        case .mcp:      return String(localized: "Connected tools (MCP)")
+        }
+    }
+
+    private func autoApproveDetail(_ group: AutoApproveGroup) -> String {
+        switch group {
+        case .web:      return String(localized: "WebSearch, WebFetch")
+        case .read:     return String(localized: "Read, Glob, Grep: nothing is changed")
+        case .edit:     return String(localized: "Edit, Write: changes files in your project")
+        case .terminal: return String(localized: "Bash. Deleting, sudo, git push and the like still ask")
+        case .mcp:      return String(localized: "Any tool of a connected server, including ones that send or delete")
+        }
+    }
+
     private func pickClaudeFolder(prompt: String) -> URL? {
         let panel = NSOpenPanel()
         panel.message = "Select your .claude folder (press ⇧⌘. to show hidden files)"
