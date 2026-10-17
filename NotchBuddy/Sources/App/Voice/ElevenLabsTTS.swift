@@ -25,6 +25,13 @@ final class ElevenLabsTTS {
     }
 
     struct Voice: Equatable { let id: String; let name: String }
+
+    /// ElevenLabs premade voices, for keys that may not list the account's voices.
+    private static let premade: [String: Voice] = [
+        "jarvis": Voice(id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel"),
+        "male":   Voice(id: "JBFqnCBsd6RMkjVDRZzb", name: "George"),
+        "female": Voice(id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel"),
+    ]
     private var chosen: (gender: String, voice: Voice)?
 
     /// Name of the voice in use, for Settings ("Rachel", "Talia – Warm Soft Guide"…).
@@ -40,7 +47,7 @@ final class ElevenLabsTTS {
         var comps = URLComponents(string: "https://api.elevenlabs.io/v1/text-to-speech/\(voice.id)")!
         comps.queryItems = [URLQueryItem(name: "output_format", value: "mp3_44100_128")]
         guard let url = comps.url else { return nil }
-        var req = URLRequest(url: url, timeoutInterval: 8)
+        var req = URLRequest(url: url, timeoutInterval: 15)
         req.httpMethod = "POST"
         req.setValue(key, forHTTPHeaderField: "xi-api-key")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -52,9 +59,10 @@ final class ElevenLabsTTS {
                                       "use_speaker_boost": true]
         }
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        guard let (data, resp) = try? await URLSession.shared.data(for: req),
-              (resp as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty else {
-            appendAppLog("nb.log", "[Voice] ElevenLabs request failed, Mac voice used")
+        let reply = try? await URLSession.shared.data(for: req)
+        let status = (reply?.1 as? HTTPURLResponse)?.statusCode ?? 0
+        guard let data = reply?.0, status == 200, !data.isEmpty else {
+            appendAppLog("nb.log", "[Voice] ElevenLabs request failed (HTTP \(status)), Mac voice used")
             return nil
         }
         return data
@@ -72,8 +80,11 @@ final class ElevenLabsTTS {
               (resp as? HTTPURLResponse)?.statusCode == 200,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let voices = json["voices"] as? [[String: Any]] else {
-            appendAppLog("nb.log", "[Voice] ElevenLabs voice list unavailable")
-            return nil
+            // A key restricted to Text to Speech cannot list voices: use a premade voice.
+            appendAppLog("nb.log", "[Voice] ElevenLabs voice list unavailable, premade voice used")
+            let fallback = Self.premade[gender] ?? Self.premade["female"]!
+            chosen = (gender, fallback)
+            return fallback
         }
         guard let v = Self.pick(voices, gender: gender) else { return nil }
         chosen = (gender, v)
