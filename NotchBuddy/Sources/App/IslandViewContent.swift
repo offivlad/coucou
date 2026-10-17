@@ -368,6 +368,17 @@ struct ApprovalView: View {
                     }
                 }
                 CodeBlock(text: approval?.command ?? approval?.tool ?? "…")
+                if approval?.tool == "chat-waiting" {
+                    // A chat of the Claude app waits for an answer: open it there.
+                    HStack(spacing: 8) {
+                        PrimaryButton("Open chat") {
+                            HookServer.shared.sendApprovalDecision("allow", for: shownId)
+                        }
+                        SecondaryButton("Later") {
+                            HookServer.shared.sendApprovalDecision("deny", for: shownId)
+                        }
+                    }
+                } else {
                 HStack(spacing: 8) {
                     SecondaryButton("Deny") {
                         HookServer.shared.sendApprovalDecision("deny", for: shownId)
@@ -384,6 +395,7 @@ struct ApprovalView: View {
                             HookServer.shared.sendApprovalDecision("always", for: shownId)
                         }
                     }
+                }
                 }
             }
             .padding(.leading, 116)

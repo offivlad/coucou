@@ -109,12 +109,12 @@ enum ChatAppWatcherLogic {
     private static let sendLabels = ["send", "send message", "send prompt", "envoyer",
                                      "envoyer le message", "envoyer l'invite", "enviar",
                                      "enviar mensaje", "enviar mensagem", "senden",
-                                     "nachricht senden", "отправить", "发送"]
+                                     "nachricht senden", "отправить", "отправить сообщение", "发送"]
 
     private static let composerWords = ["dictat", "dicter", "voice mode", "mode vocal", "use voice",
                                         "attach", "add files", "add photos", "upload a file", "joindre",
                                         "ajouter des fichiers", "ajouter des photos", "importer un fichier",
-                                        "прикрепить", "диктовк", "голосов", "добавить фа"]
+                                        "прикрепить", "диктовать", "голосов", "добавить фа", "включить голосовой режим"]
 
     /// Classifies a button label. Returns nil for any other button.
     static func classify(_ rawLabel: String) -> ChatButtonKind? {
@@ -269,5 +269,103 @@ struct ChatAppTracker: Sendable {
         startedAt = nil
         idleStreak = 0
         unknownStreak = 0
+    }
+}
+
+// MARK: - Sidebar: every chat's state
+
+/// State of a chat in the Claude app's sidebar, read from the status next to its title
+/// (AXApplicationStatus: "Выполняется" / "Running", "Ожидание ввода" / "Waiting for input").
+enum ChatRowStatus: Equatable, Sendable {
+    case running
+    case waiting
+
+    init?(statusLabel raw: String) {
+        let s = ChatAppWatcherLogic.normalize(raw)
+        if ["выполняется", "running", "in progress", "generating", "working", "en cours"].contains(where: { s.contains($0) }) {
+            self = .running
+        } else if ["ожидание", "waiting", "needs input", "требуется", "awaiting", "en attente"].contains(where: { s.contains($0) }) {
+            self = .waiting
+        } else {
+            return nil
+        }
+    }
+}
+
+extension ChatAppWatcherLogic {
+    /// "Запрос разрешения: Веб-запрос" → a web page or web search prompt.
+    static func isWebPromptKind(_ desc: String?) -> Bool {
+        guard let desc else { return false }
+        let d = normalize(desc)
+        return ["веб", "web", "fetch", "url"].contains { d.contains($0) }
+    }
+
+    /// The prompt card's own label: "Запрос разрешения: …" / "Permission request: …".
+    static func isPromptCard(_ desc: String) -> Bool {
+        let d = normalize(desc)
+        return d.hasPrefix("запрос разрешения") || d.hasPrefix("permission request")
+            || d.hasPrefix("demande d'autorisation")
+    }
+
+    /// The chat transcript region: skipped by the walk, it can hold thousands of elements.
+    static func isTranscript(_ desc: String) -> Bool {
+        let d = normalize(desc)
+        return d == "сообщения в чате" || d == "chat messages" || d == "messages"
+    }
+
+    /// The sidebar landmark.
+    static func isSidebar(_ desc: String) -> Bool {
+        let d = normalize(desc)
+        return d == "боковая панель" || d == "sidebar" || d == "barre laterale"
+    }
+}
+
+/// Follows every chat of the sidebar at once. A chat that stops showing "running" is
+/// finished only after `confirmations` scans in a row, so a status that blinks while the
+/// app redraws the list is not read as the end.
+struct ChatListTracker: Sendable {
+    enum Event: Equatable, Sendable {
+        case started(String)
+        case waiting(String)
+        case resumed(String)
+        case finished(String)
+    }
+
+    var confirmations = 2
+    private(set) var states: [String: ChatRowStatus] = [:]
+    private var missing: [String: Int] = [:]
+
+    var running: [String] { states.filter { $0.value == .running }.map(\.key).sorted() }
+    var waiting: [String] { states.filter { $0.value == .waiting }.map(\.key).sorted() }
+    var isActive: Bool { !states.isEmpty }
+
+    mutating func update(_ seen: [String: ChatRowStatus]) -> [Event] {
+        var events: [Event] = []
+        for (title, status) in seen.sorted(by: { $0.key < $1.key }) {
+            missing[title] = nil
+            switch (states[title], status) {
+            case (nil, .running):      events.append(.started(title))
+            case (nil, .waiting):      events.append(.waiting(title))
+            case (.running?, .waiting): events.append(.waiting(title))
+            case (.waiting?, .running): events.append(.resumed(title))
+            default: break
+            }
+            states[title] = status
+        }
+        for title in states.keys.sorted() where seen[title] == nil {
+            let n = (missing[title] ?? 0) + 1
+            missing[title] = n
+            if n >= confirmations {
+                states[title] = nil
+                missing[title] = nil
+                events.append(.finished(title))
+            }
+        }
+        return events
+    }
+
+    mutating func reset() {
+        states = [:]
+        missing = [:]
     }
 }

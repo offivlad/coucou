@@ -45848,6 +45848,56 @@
           }
         }
       }
+    },
+    "Open chat" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть чат"
+          }
+        }
+      }
+    },
+    "Later" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Позже"
+          }
+        }
+      }
+    },
+    "✓ Ready: %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "✓ Готово: %@"
+          }
+        }
+      }
+    },
+    "⏳ Waiting for you: %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⏳ Ждёт вас: %@"
+          }
+        }
+      }
+    },
+    "«%@» is waiting for your answer" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«%@» ждёт вашего ответа"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

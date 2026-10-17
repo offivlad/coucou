@@ -716,7 +716,7 @@ final class HookServer: @unchecked Sendable {
     /// The chat app shows a tool prompt. With no Claude Code request waiting, the notch shows
     /// the approval card too: its Allow / Always / Deny press the same button in the app.
     @MainActor
-    func chatAppNeedsApproval(agent: String, appName: String, quiet: Bool) {
+    func chatAppNeedsApproval(agent: String, appName: String, detail: String? = nil, quiet: Bool) {
         let id = "agent_\(agent)"
         upsertExternalAgent(id: id, name: agent)
         AppState.shared.updateTask(id: id, state: .approval)
@@ -726,7 +726,8 @@ final class HookServer: @unchecked Sendable {
         if approvals.isEmpty, state.pendingApproval == nil {
             state.pendingApproval = ApprovalInfo(sessionId: Self.chatApprovalPrefix + agent,
                                                  tool: appName,
-                                                 command: String(localized: "\(appName) wants to use a tool"),
+                                                 command: detail.map { String($0.prefix(160)) }
+                                                    ?? String(localized: "\(appName) wants to use a tool"),
                                                  inputKey: "", pillId: id, projectName: appName)
             if !quiet {
                 state.isPinned = true
@@ -750,6 +751,48 @@ final class HookServer: @unchecked Sendable {
     }
 
     static let chatApprovalPrefix = "chat-approval-"
+    static let chatWaitingPrefix = "chat-waiting-"
+
+    /// A step on a chat app's pill (one per chat when several run at once).
+    @MainActor
+    func chatAppStep(agent: String, step: String, working: Bool) {
+        let id = "agent_\(agent)"
+        upsertExternalAgent(id: id, name: agent)
+        appendStep(id: id, step: step)
+        if working { AppState.shared.updateTask(id: id, state: .thinking) }
+    }
+
+    /// A chat of the app waits for the user (a question, or a prompt in a chat not on
+    /// screen): a card says which one, its button opens that chat.
+    @MainActor
+    func chatAppWaiting(agent: String, chatTitle: String, quiet: Bool) {
+        let id = "agent_\(agent)"
+        upsertExternalAgent(id: id, name: agent)
+        appendStep(id: id, step: String(localized: "⏳ Waiting for you: \(chatTitle)"))
+        let state = AppState.shared
+        guard approvals.isEmpty, state.pendingApproval == nil else { return }
+        state.pendingApproval = ApprovalInfo(sessionId: Self.chatWaitingPrefix + agent, tool: "chat-waiting",
+                                             command: String(localized: "«\(chatTitle)» is waiting for your answer"),
+                                             inputKey: "", pillId: id, projectName: chatTitle)
+        guard !quiet else { return }
+        SoundEngine.shared.play("question")
+        state.isPinned = true
+        if focusBeforeApproval == nil { focusBeforeApproval = state.focusId }
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = id }
+        expandIfNeeded(to: .approval)
+    }
+
+    @MainActor
+    func closeChatWaitingCard(agent: String, title: String) {
+        let state = AppState.shared
+        guard let shown = state.pendingApproval, shown.sessionId == Self.chatWaitingPrefix + agent,
+              shown.projectName == title else { return }
+        state.pendingApproval = nil
+        state.isPinned = false
+        if let prev = focusBeforeApproval { state.focusId = prev }
+        focusBeforeApproval = nil
+        if state.view == .approval { state.view = state.tasks.isEmpty ? .empty : .overview }
+    }
 
     /// A chat app prompt the auto-approve rules answer: a step on the pill, no card.
     @MainActor
@@ -1059,6 +1102,14 @@ final class HookServer: @unchecked Sendable {
             return
         }
         #if !APPSTORE
+        if let shown = AppState.shared.pendingApproval, shown.sessionId.hasPrefix(Self.chatWaitingPrefix) {
+            let agent = String(shown.sessionId.dropFirst(Self.chatWaitingPrefix.count))
+            closeChatWaitingCard(agent: agent, title: shown.projectName)
+            if decision != "deny", let app = ChatApp.allCases.first(where: { $0.agentTag == agent }) {
+                ChatAppWatcher.shared.openChat(app, title: shown.projectName)
+            }
+            return
+        }
         if let shown = AppState.shared.pendingApproval, shown.sessionId.hasPrefix(Self.chatApprovalPrefix) {
             answerChatApproval(decision, info: shown)
             return

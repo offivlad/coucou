@@ -78,7 +78,7 @@ final class MacAssistant {
         p.currentDirectoryURL = cwd
         p.arguments = ["-p", command,
                        "--output-format", "stream-json", "--verbose",
-                       "--model", "sonnet",
+                       "--model", "haiku",
                        "--append-system-prompt", Self.systemPrompt,
                        "--allowedTools", "Bash", "Read", "Glob", "Grep", "WebSearch", "WebFetch",
                        "--disallowedTools"] + Self.denied + [

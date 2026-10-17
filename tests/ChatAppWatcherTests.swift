@@ -8,6 +8,7 @@ enum ChatAppWatcherTests {
         testSignal()
         testConversationTitle()
         testTracker()
+        testChatList()
         print("ChatAppWatcherLogic: all cases passed")
     }
 
@@ -38,6 +39,8 @@ enum ChatAppWatcherTests {
         precondition(!ChatAppWatcherLogic.isWebPrompt(nil), "no text")
         precondition(ChatAppWatcherLogic.classify("Остановить ответ") == .stop, "ru stop")
         precondition(ChatAppWatcherLogic.classify("Отправить") == .send, "ru send")
+        precondition(ChatAppWatcherLogic.classify("Отправить сообщение") == .send, "ru send message")
+        precondition(ChatAppWatcherLogic.classify("Диктовать") == .composer, "ru dictate")
         precondition(ChatAppWatcherLogic.classify("Разрешить один раз") == .allowOnce, "ru allow once")
         precondition(ChatAppWatcherLogic.classify("Всегда разрешать") == .allowAlways, "ru allow always")
         precondition(ChatAppWatcherLogic.classify("Запретить") == .deny, "ru deny")
@@ -154,5 +157,26 @@ enum ChatAppWatcherTests {
         tracker.reset()
         precondition(tracker.update(.idle, at: t0 + 21).isEmpty, "reset → no finish")
         precondition(tracker.update(.idle, at: t0 + 22).isEmpty, "reset → no finish")
+    }
+
+    static func testChatList() {
+        precondition(ChatRowStatus(statusLabel: "Выполняется") == .running, "ru running")
+        precondition(ChatRowStatus(statusLabel: "Ожидание ввода") == .waiting, "ru waiting")
+        precondition(ChatRowStatus(statusLabel: "MacBook Pro — Влад, Подключено") == nil, "other status")
+        precondition(ChatAppWatcherLogic.isPromptCard("Запрос разрешения: Веб-запрос"), "prompt card")
+        precondition(ChatAppWatcherLogic.isWebPromptKind("Запрос разрешения: Веб-запрос"), "web prompt")
+        precondition(!ChatAppWatcherLogic.isWebPromptKind("Запрос разрешения: WordPress"), "mcp prompt")
+
+        var t = ChatListTracker()
+        precondition(t.update(["A": .running, "B": .waiting]) == [.started("A"), .waiting("B")], "first scan")
+        precondition(t.update(["A": .running, "B": .running]) == [.resumed("B")], "B resumes")
+        precondition(t.update(["B": .running]).isEmpty, "A missing once: not yet finished")
+        precondition(t.update(["A": .running, "B": .running]).isEmpty, "A back: nothing")
+        precondition(t.update(["B": .running]).isEmpty, "A missing once")
+        precondition(t.update(["B": .running]) == [.finished("A")], "A missing twice: finished")
+        precondition(t.running == ["B"], "B still running")
+        precondition(t.update(["B": .waiting]) == [.waiting("B")], "B waits")
+        precondition(t.update([:]).isEmpty && t.update([:]) == [.finished("B")], "B done")
+        precondition(!t.isActive, "all done")
     }
 }

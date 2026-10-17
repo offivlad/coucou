@@ -25,6 +25,10 @@ private final class ChatAppScanner: @unchecked Sendable {
         let title: String?
         /// Texts of the tool prompt (its title, the URL…), when one is showing.
         var promptText: String? = nil
+        /// Every chat the sidebar shows as running or waiting; nil when the sidebar is hidden.
+        var chats: [String: ChatRowStatus]? = nil
+        /// Sidebar row button of each listed chat, to open it.
+        var promptIsWeb = false
     }
 
     let queue = DispatchQueue(label: "fr.louisraille.coucou.chat-apps", qos: .utility)
@@ -35,6 +39,33 @@ private final class ChatAppScanner: @unchecked Sendable {
     /// Whole-window walks in a row that found no message box: each one doubles the wait.
     private var boxMisses: [pid_t: Int] = [:]
     private var accessibilityAsked: Set<pid_t> = []
+    /// Sidebar row button of each chat seen running or waiting, to open it from the notch.
+    private var rowButtons: [pid_t: [String: AXUIElement]] = [:]
+
+    /// The title of a sidebar row: its button's title.
+    private func rowTitle(_ row: AXUIElement) -> String? {
+        guard let b = rowButton(row) else { return nil }
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(b, kAXTitleAttribute as CFString, &ref) == .success,
+              let t = ref as? String, !t.isEmpty else { return nil }
+        return t
+    }
+
+    private func rowButton(_ row: AXUIElement) -> AXUIElement? {
+        elements(row, kAXChildrenAttribute).first { el in
+            var ref: CFTypeRef?
+            return AXUIElementCopyAttributeValue(el, kAXRoleAttribute as CFString, &ref) == .success
+                && (ref as? String) == "AXButton"
+        }
+    }
+
+    /// Opens a chat by pressing its sidebar row. False when it is not listed.
+    func openChat(pid: pid_t, title: String) -> Bool {
+        guard let b = rowButtons[pid]?[title] else { return false }
+        AXUIElementSetMessagingTimeout(b, 0.5)
+        return AXUIElementPerformAction(b, kAXPressAction as CFString) == .success
+    }
+
     /// Buttons of the tool prompt seen by the last scan, to press them from the notch.
     private var promptButtons: [pid_t: [ChatButtonKind: AXUIElement]] = [:]
 
@@ -60,6 +91,7 @@ private final class ChatAppScanner: @unchecked Sendable {
         boxMisses[pid] = nil
         accessibilityAsked.remove(pid)
         promptButtons[pid] = nil
+        rowButtons[pid] = nil
     }
 
     /// Presses a button of the tool prompt the last scan saw. Only ever called after the
@@ -88,53 +120,40 @@ private final class ChatAppScanner: @unchecked Sendable {
         var kinds: [ChatButtonKind] = []
         var promptText: String? = nil
         var complete = false
-        var boxFound = false
+        var chats: [String: ChatRowStatus]? = nil
+        var promptIsWeb = false
 
-        if let box = boxes[pid] {
-            let walk = walk(from: [box], budget: Self.boxScanBudget)
-            if let promptBox = walk.promptBox { promptText = texts(in: promptBox) }
-            if walk.kinds.contains(where: { $0 == .stop || $0 == .send || $0 == .composer }) {
-                kinds = walk.kinds
-                complete = walk.complete
-                boxFound = true
+        // The whole window every time (the transcript is skipped, so it stays small): the
+        // sidebar holds the state of every chat, the bottom the prompt of the open one.
+        let windows = elements(root, kAXWindowsAttribute)
+        if !windows.isEmpty {
+            let walk = walk(from: windows, budget: Self.fullScanBudget)
+            kinds = walk.kinds
+            complete = walk.complete
+            promptButtons[pid] = walk.prompt.isEmpty ? nil : walk.prompt
+            if let box = walk.promptBox { promptText = texts(in: box) }
+            if let label = walk.promptLabel {
+                promptIsWeb = ChatAppWatcherLogic.isWebPromptKind(label)
+                    || ChatAppWatcherLogic.isWebPrompt(promptText)
+                promptText = label + " " + (promptText ?? "")
             } else {
-                boxes[pid] = nil   // the box moved (new window, new chat): find it again
+                promptIsWeb = ChatAppWatcherLogic.isWebPrompt(promptText)
+            }
+            if walk.sidebarSeen {
+                var seen: [String: ChatRowStatus] = [:]
+                for (row, label) in walk.rowStatuses {
+                    guard let status = ChatRowStatus(statusLabel: label), let title = rowTitle(row) else { continue }
+                    seen[title] = status
+                    rowButtons[pid, default: [:]][title] = rowButton(row)
+                }
+                chats = seen
             }
         }
-
-        let now = Date()
-        let misses = boxMisses[pid] ?? 0
-        let interval = min(Self.fullScanInterval * pow(2, Double(min(misses, 4))), Self.maxFullScanInterval)
-        let fullDue = (lastFullScan[pid].map { now.timeIntervalSince($0) >= interval } ?? true)
-        if (!boxFound && fullDue) || (boxFound && wantsFullScan) {
-            lastFullScan[pid] = now
-            let windows = elements(root, kAXWindowsAttribute)
-            if windows.isEmpty {
-                boxMisses[pid] = misses + 1
-            } else {
-                let walk = walk(from: windows, budget: Self.fullScanBudget)
-                promptButtons[pid] = walk.prompt.isEmpty ? nil : walk.prompt
-                if let box = walk.promptBox { promptText = texts(in: box) }
-                if let box = walk.box {
-                    boxes[pid] = box
-                    boxMisses[pid] = 0
-                } else if !boxFound {
-                    boxMisses[pid] = misses + 1
-                }
-                if boxFound {
-                    // The box already answered for the stop button; keep only what is new.
-                    kinds += walk.kinds.filter { $0 != .stop && $0 != .send && $0 != .composer }
-                } else {
-                    kinds = walk.kinds
-                    complete = walk.complete
-                }
-            }
-        }
-
         let signal = ChatAppWatcherLogic.signal(for: kinds, complete: complete, app: app)
         diagnose(pid: pid, app: app, signal: signal)
         return Result(signal: signal, title: ChatAppWatcherLogic.conversationTitle(title, app: app),
-                      promptText: signal == .needsApproval ? promptText : nil)
+                      promptText: signal == .needsApproval ? promptText : nil,
+                      chats: chats, promptIsWeb: promptIsWeb)
     }
 
     // MARK: - Diagnostic map
@@ -218,6 +237,11 @@ private final class ChatAppScanner: @unchecked Sendable {
         var prompt: [ChatButtonKind: AXUIElement] = [:]
         /// The element around the prompt, to read its title.
         var promptBox: AXUIElement? = nil
+        /// The prompt card's label ("Запрос разрешения: Веб-запрос").
+        var promptLabel: String? = nil
+        /// Sidebar statuses met: the row that holds each, and its label.
+        var rowStatuses: [(row: AXUIElement, label: String)] = []
+        var sidebarSeen = false
     }
 
     private struct Visit {
@@ -236,7 +260,7 @@ private final class ChatAppScanner: @unchecked Sendable {
         var visited = 0
         let deadline = Date().addingTimeInterval(Self.walkDeadline)
         let attributes = [kAXRoleAttribute, kAXDescriptionAttribute, kAXTitleAttribute,
-                          kAXHelpAttribute, kAXChildrenAttribute] as CFArray
+                          kAXHelpAttribute, kAXChildrenAttribute, kAXSubroleAttribute] as CFArray
 
         while let visit = stack.popLast() {
             visited += 1
@@ -248,9 +272,25 @@ private final class ChatAppScanner: @unchecked Sendable {
             guard AXUIElementCopyMultipleAttributeValues(visit.element, attributes,
                                                          AXCopyMultipleAttributeOptions(rawValue: 0),
                                                          &valuesRef) == .success,
-                  let values = valuesRef as? [AnyObject], values.count == 5 else { continue }
+                  let values = valuesRef as? [AnyObject], values.count == 6 else { continue }
 
             let role = values[0] as? String ?? ""
+            let subrole = values[5] as? String ?? ""
+            let desc = values[1] as? String ?? ""
+            if role == "AXGroup", !desc.isEmpty {
+                if subrole == "AXApplicationStatus", let row = visit.parent {
+                    result.rowStatuses.append((row, desc))
+                    continue
+                }
+                if subrole == "AXLandmarkComplementary", ChatAppWatcherLogic.isSidebar(desc) { result.sidebarSeen = true }
+                if subrole == "AXApplicationGroup" {
+                    if ChatAppWatcherLogic.isTranscript(desc) { continue }   // the messages: thousands of elements
+                    if ChatAppWatcherLogic.isPromptCard(desc), result.promptLabel == nil {
+                        result.promptLabel = desc
+                        result.promptBox = visit.element
+                    }
+                }
+            }
             if Self.buttonRoles.contains(role) {
                 for case let label as String in [values[1], values[2], values[3]] {
                     guard let kind = ChatAppWatcherLogic.classify(label) else { continue }
@@ -259,7 +299,7 @@ private final class ChatAppScanner: @unchecked Sendable {
                         result.prompt[kind] = visit.element
                         // The prompt card: a few levels above its buttons, holding its title.
                         if result.promptBox == nil {
-                            result.promptBox = visit.ancestors.dropLast(3).last ?? visit.ancestors.first
+                            result.promptBox = visit.ancestors.dropLast(2).last ?? visit.ancestors.first
                         }
                     }
                     if result.box == nil, kind == .stop || kind == .send || kind == .composer {
@@ -568,31 +608,26 @@ final class ChatAppWatcher {
         // its hooks: let them speak, and do not report the same answer twice.
         if HookServer.shared.hasLiveHookSession(agent: app.agentTag) {
             trackers[app]?.reset()
+            listTrackers[app]?.reset()
             return
         }
         if let title = result.title { titles[app] = title }
         var tracker = trackers[app] ?? ChatAppTracker()
         let events = tracker.update(result.signal, at: Date())
         trackers[app] = tracker
-        guard !events.isEmpty else { return }
 
         // The answer is right under the user's eyes: update Mochi, keep the island quiet.
         let frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         let quiet = frontmost.map { app.bundleIds.contains($0) } ?? false
         let title = titles[app]
 
+        // The prompt of the open chat (permission card), whatever the sidebar says.
         for event in events {
-            var payload = basePayload(app)
-            payload["coucou_quiet"] = quiet
             switch event {
-            case .started:
-                payload["prompt"] = title ?? String(localized: "Writing an answer…")
-                HookServer.shared.ingestLocalEvent(name: "UserPromptSubmit", payload: payload)
             case .needsApproval:
                 appendAppLog("nb.log", "[ChatApps] prompt: \(String((result.promptText ?? "no text").prefix(120)))")
                 // Auto-approve → "Web search and pages" also covers the app's web page prompts.
-                if app == .claude, ChatAppWatcherLogic.isWebPrompt(result.promptText),
-                   AutoApproveGroup.enabled().contains(.web) {
+                if app == .claude, result.promptIsWeb, AutoApproveGroup.enabled().contains(.web) {
                     HookServer.shared.chatAppAutoApproved(agent: app.agentTag, what: result.promptText ?? "")
                     answerApproval(app, kind: .allowOnce) { [weak self] ok in
                         appendAppLog("nb.log", "Chat app web prompt auto-approved: \(ok ? "done" : "prompt still there")")
@@ -600,19 +635,93 @@ final class ChatAppWatcher {
                         // with the user: never send the shortcut again and again.
                         if ok { self?.trackers[app]?.clearApproval() }
                     }
-                    break
+                } else {
+                    HookServer.shared.chatAppNeedsApproval(agent: app.agentTag, appName: app.displayName,
+                                                          detail: result.promptText, quiet: quiet)
                 }
-                HookServer.shared.chatAppNeedsApproval(agent: app.agentTag, appName: app.displayName, quiet: quiet)
             case .approvalCleared:
                 HookServer.shared.chatAppApprovalCleared(agent: app.agentTag)
+            case .started, .finished:
+                break
+            }
+        }
+
+        // Every chat: from the sidebar when it shows, else the open chat alone.
+        if var chats = result.chats {
+            // The open chat writing an answer counts even when its row shows no status.
+            if result.signal == .generating, let title, chats[title] == nil { chats[title] = .running }
+            applyChatList(chats, app: app, quiet: quiet)
+            return
+        }
+        for event in events {
+            var payload = basePayload(app)
+            payload["coucou_quiet"] = quiet
+            switch event {
+            case .started:
+                payload["prompt"] = title ?? String(localized: "Writing an answer…")
+                HookServer.shared.ingestLocalEvent(name: "UserPromptSubmit", payload: payload)
             case .finished:
                 payload["last_assistant_message"] = title.map { String(localized: "Answer ready · \($0)") }
                     ?? String(localized: "Answer ready")
                 HookServer.shared.closeChatApprovalCard(agent: app.agentTag)
                 AppState.shared.chatAnswerPillId = app.pillId
                 HookServer.shared.ingestLocalEvent(name: "Stop", payload: payload)
+            default:
+                break
             }
         }
+    }
+
+    private var listTrackers: [ChatApp: ChatListTracker] = [:]
+
+    /// Several chats at once: one pill, a step per chat, a sound and a card when one ends or
+    /// waits for the user; the pill rests when none is left.
+    private func applyChatList(_ chats: [String: ChatRowStatus], app: ChatApp, quiet: Bool) {
+        var list = listTrackers[app] ?? ChatListTracker()
+        let wasActive = list.isActive
+        let events = list.update(chats)
+        listTrackers[app] = list
+        guard !events.isEmpty else { return }
+        appendAppLog("nb.log", "[ChatApps] chats: running \(list.running.count), waiting \(list.waiting.count)")
+
+        var payload = basePayload(app)
+        payload["coucou_quiet"] = quiet
+        var started = wasActive
+        for event in events {
+            switch event {
+            case .started(let t), .resumed(let t):
+                if !started {
+                    started = true
+                    payload["prompt"] = t
+                    HookServer.shared.ingestLocalEvent(name: "UserPromptSubmit", payload: payload)
+                } else {
+                    HookServer.shared.chatAppStep(agent: app.agentTag, step: "▶ \(t)", working: true)
+                }
+                HookServer.shared.closeChatWaitingCard(agent: app.agentTag, title: t)
+            case .waiting(let t):
+                HookServer.shared.chatAppWaiting(agent: app.agentTag, chatTitle: t, quiet: quiet)
+            case .finished(let t):
+                HookServer.shared.closeChatWaitingCard(agent: app.agentTag, title: t)
+                if list.isActive {
+                    HookServer.shared.chatAppStep(agent: app.agentTag, step: String(localized: "✓ Ready: \(t)"), working: true)
+                    if !quiet { SoundEngine.shared.play("finish") }
+                } else {
+                    var stop = basePayload(app)
+                    stop["coucou_quiet"] = quiet
+                    stop["last_assistant_message"] = String(localized: "Answer ready · \(t)")
+                    AppState.shared.chatAnswerPillId = app.pillId
+                    HookServer.shared.ingestLocalEvent(name: "Stop", payload: stop)
+                }
+            }
+        }
+    }
+
+    /// Opens a chat of the app (its sidebar row) and brings the app forward.
+    func openChat(_ app: ChatApp, title: String) {
+        guard let pid = pids[app] else { return }
+        NSRunningApplication(processIdentifier: pid)?.activate(options: [])
+        let scanner = self.scanner
+        scanner.queue.async { _ = scanner.openChat(pid: pid, title: title) }
     }
 
     private func basePayload(_ app: ChatApp) -> [String: Any] {
