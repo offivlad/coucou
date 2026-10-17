@@ -1,0 +1,76 @@
+name: My Coucou build
+
+# Personal build: compiles Coucou from this repository on a GitHub Mac, signs it ad hoc
+# (no Apple Developer ID, not notarized) and attaches Coucou.zip to a prerelease.
+# Runs on every push to main, or by hand from the Actions tab.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: my-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: cd NotchBuddy && xcodegen
+
+      - name: Tests (chat app watcher, Claude hooks)
+        run: |
+          bash scripts/test-chat-apps.sh
+          bash scripts/test-claude-hooks.sh
+
+      - name: Build GitHub app (Release)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project NotchBuddy/NotchBuddy.xcodeproj \
+            -scheme NotchBuddy \
+            -configuration Release \
+            -derivedDataPath build \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO 2>&1 | tee build.log || {
+              grep -E "error:" build.log | sort -u | head -30 | sed 's/^/::error::/'
+              exit 1
+            }
+
+      - name: Sign ad hoc and zip
+        run: |
+          APP="build/Build/Products/Release/Coucou.app"
+          test -d "$APP"
+          codesign --force --deep --options runtime \
+            --entitlements NotchBuddy/Resources/Coucou.entitlements --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist"
+          ditto -c -k --keepParent "$APP" Coucou.zip
+          shasum -a 256 Coucou.zip | tee Coucou.zip.sha256
+
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="my-$(date -u +%Y%m%d-%H%M)-${GITHUB_SHA::7}"
+          cat > notes.md <<EOF
+          Personal build of \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA::7}, signed ad hoc: not notarized.
+
+          SHA-256: $(cut -d' ' -f1 Coucou.zip.sha256)
+          EOF
+          gh release create "$TAG" Coucou.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "My Coucou ($TAG)" \
+            --notes-file notes.md \
+            --prerelease
