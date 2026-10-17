@@ -49,6 +49,9 @@ final class VoiceSpeaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDe
     /// Adds a sentence to the queue. Starts playing if nothing is playing.
     func enqueue(_ text: String, locale: Locale?) {
         guard VoiceSettings.speakEnabled else { return }
+        if VoiceSettings.ttsEngine == "elevenlabs", !ElevenLabsTTS.isActive {
+            appendAppLog("nb.log", "[Voice] ElevenLabs chosen but no key is saved: Mac voice used")
+        }
         let audio: Task<Data?, Never>? = ElevenLabsTTS.isActive
             ? Task { await ElevenLabsTTS.shared.audio(for: text) }
             : nil

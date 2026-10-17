@@ -65,6 +65,7 @@ final class ElevenLabsTTS {
             appendAppLog("nb.log", "[Voice] ElevenLabs request failed (HTTP \(status)), Mac voice used")
             return nil
         }
+        appendAppLog("nb.log", "[Voice] ElevenLabs ok: \(voice.name), \(Self.model), \(data.count) bytes")
         return data
     }
 
