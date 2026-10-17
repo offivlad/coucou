@@ -1018,6 +1018,15 @@ struct SettingsView: View {
                         chatAppsTrusted = ChatAppWatcher.isTrusted
                     }
                 ))
+                if chatAppsEnabled && chatAppsTrusted {
+                    Button(String(localized: "Save a map of the Claude window")) {
+                        ChatAppWatcher.shared.saveDiagnostic(.claude) { url in
+                            if let url { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .help(String(localized: "For debugging: writes the window's buttons, labels and the first words of its texts to a file on your Desktop."))
+                }
                 if chatAppsEnabled && !chatAppsTrusted {
                     HStack(spacing: 10) {
                         Text("Allow Coucou in System Settings → Privacy & Security → Accessibility.")

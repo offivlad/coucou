@@ -45588,6 +45588,26 @@
           }
         }
       }
+    },
+    "Save a map of the Claude window" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить карту окна Claude"
+          }
+        }
+      }
+    },
+    "For debugging: writes the window's buttons, labels and the first words of its texts to a file on your Desktop." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для отладки: записывает кнопки, подписи и первые слова текстов окна в файл на Рабочем столе."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -44,7 +44,7 @@ private final class ChatAppScanner: @unchecked Sendable {
     /// Without a known message box, walk the whole window at most this often, backing off
     /// up to a minute while the box stays out of sight (no window, a settings page…).
     private static let fullScanInterval: TimeInterval = 5
-    private static let maxFullScanInterval: TimeInterval = 60
+    private static let maxFullScanInterval: TimeInterval = 15
     /// Roles whose subtree never holds a button worth reading.
     private static let skippedRoles: Set<String> = [
         "AXStaticText", "AXImage", "AXScrollBar", "AXMenuBar", "AXMenu", "AXTextArea",
@@ -128,6 +128,49 @@ private final class ChatAppScanner: @unchecked Sendable {
 
         let signal = ChatAppWatcherLogic.signal(for: kinds, complete: complete, app: app)
         return Result(signal: signal, title: ChatAppWatcherLogic.conversationTitle(title, app: app))
+    }
+
+    // MARK: - Diagnostic map
+
+    /// A text map of the app's windows: roles, labels, DOM ids and classes, and the first
+    /// characters of texts. Written to a file only when the user asks for it in Settings.
+    func dumpTree(pid: pid_t) -> String {
+        let root = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(root, 1.0)
+        AXUIElementSetAttributeValue(root, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        var lines: [String] = []
+        var stack: [(AXUIElement, Int)] = elements(root, kAXWindowsAttribute).reversed().map { ($0, 0) }
+        var count = 0
+        while let item = stack.popLast(), count < 30_000 {
+            let (element, depth) = item
+            count += 1
+            AXUIElementSetMessagingTimeout(element, 0.5)
+            func str(_ attr: String) -> String? {
+                var ref: CFTypeRef?
+                guard AXUIElementCopyAttributeValue(element, attr as CFString, &ref) == .success else { return nil }
+                if let s = ref as? String { return s.isEmpty ? nil : s }
+                if let a = ref as? [String] { return a.isEmpty ? nil : a.joined(separator: ".") }
+                if let n = ref as? NSNumber { return n.stringValue }
+                return nil
+            }
+            var parts: [String] = [str(kAXRoleAttribute) ?? "?"]
+            if let v = str(kAXSubroleAttribute) { parts.append("sub=\(v)") }
+            if let v = str("AXDOMIdentifier") { parts.append("#\(v)") }
+            if let v = str("AXDOMClassList") { parts.append(".\(v.prefix(80))") }
+            for (key, attr) in [("title", kAXTitleAttribute), ("desc", kAXDescriptionAttribute),
+                                ("help", kAXHelpAttribute), ("value", kAXValueAttribute)] {
+                if let v = str(attr) {
+                    let flat = v.replacingOccurrences(of: "\n", with: " ")
+                    parts.append("\(key)=\"\(flat.prefix(60))\(flat.count > 60 ? "…" : "")\"")
+                }
+            }
+            lines.append(String(repeating: "  ", count: depth) + parts.joined(separator: " "))
+            guard depth < 90 else { continue }
+            for child in elements(element, kAXChildrenAttribute).reversed() {
+                stack.append((child, depth + 1))
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Tree walk
@@ -337,6 +380,25 @@ final class ChatAppWatcher {
             HookServer.shared.ingestLocalEvent(name: "SessionEnd", payload: basePayload(app))
         }
         trackers[app] = nil
+    }
+
+    // MARK: - Diagnostic
+
+    /// Saves a map of the app's window to the Desktop (Settings button). Nil if not running.
+    func saveDiagnostic(_ app: ChatApp, done: @escaping @MainActor (URL?) -> Void) {
+        guard let running = NSWorkspace.shared.runningApplications.first(where: {
+            app.bundleIds.contains($0.bundleIdentifier ?? "")
+        }) else { done(nil); return }
+        let pid = running.processIdentifier
+        let scanner = self.scanner
+        scanner.queue.async {
+            let text = scanner.dumpTree(pid: pid)
+            let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+            let url = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Desktop/coucou-\(app.rawValue)-map-\(stamp).txt")
+            let ok = (try? text.write(to: url, atomically: true, encoding: .utf8)) != nil
+            DispatchQueue.main.async { MainActor.assumeIsolated { done(ok ? url : nil) } }
+        }
     }
 
     // MARK: - Answering a tool prompt from the notch
