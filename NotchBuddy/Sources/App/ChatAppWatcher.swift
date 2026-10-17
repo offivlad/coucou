@@ -132,11 +132,38 @@ private final class ChatAppScanner: @unchecked Sendable {
         }
 
         let signal = ChatAppWatcherLogic.signal(for: kinds, complete: complete, app: app)
+        diagnose(pid: pid, app: app, signal: signal)
         return Result(signal: signal, title: ChatAppWatcherLogic.conversationTitle(title, app: app),
                       promptText: signal == .needsApproval ? promptText : nil)
     }
 
     // MARK: - Diagnostic map
+
+    private var lastSignal: [pid_t: ChatAppSignal] = [:]
+    private var lastDump = Date.distantPast
+
+    /// Diagnostics (temporary): a map of the Claude window in ~/Library/Logs/NotchBuddy when a
+    /// tool prompt appears, when the state changes, and once a minute while an answer runs,
+    /// so detection can be tuned on the real window. Overwritten each time; stays on the Mac.
+    private func diagnose(pid: pid_t, app: ChatApp, signal: ChatAppSignal) {
+        guard app == .claude, UserDefaults.standard.object(forKey: "chatAppsDiagnostics") as? Bool ?? true else { return }
+        let previous = lastSignal[pid]
+        lastSignal[pid] = signal
+        let now = Date()
+        var reason: String?
+        if signal != previous, previous != nil { reason = "change-\(previous.map { "\($0)" } ?? "none")-to-\(signal)" }
+        if signal == .needsApproval, previous != .needsApproval { reason = "prompt" }
+        if reason == nil, now.timeIntervalSince(lastDump) > 60 { reason = "periodic-\(signal)" }
+        guard let reason, now.timeIntervalSince(lastDump) > 4 || reason == "prompt" else { return }
+        lastDump = now
+        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/NotchBuddy")
+        let stamp = ISO8601DateFormatter().string(from: now)
+        let text = "# \(stamp) \(reason)\n" + dumpTree(pid: pid)
+        let name = reason == "prompt" ? "claude-map-prompt.txt"
+                 : reason.hasPrefix("change") ? "claude-map-change.txt" : "claude-map-periodic.txt"
+        try? text.write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+        appendAppLog("nb.log", "[ChatApps] \(reason)")
+    }
 
     /// A text map of the app's windows: roles, labels, DOM ids and classes, and the first
     /// characters of texts. Written to a file only when the user asks for it in Settings.
@@ -562,6 +589,7 @@ final class ChatAppWatcher {
                 payload["prompt"] = title ?? String(localized: "Writing an answer…")
                 HookServer.shared.ingestLocalEvent(name: "UserPromptSubmit", payload: payload)
             case .needsApproval:
+                appendAppLog("nb.log", "[ChatApps] prompt: \(String((result.promptText ?? "no text").prefix(120)))")
                 // Auto-approve → "Web search and pages" also covers the app's web page prompts.
                 if app == .claude, ChatAppWatcherLogic.isWebPrompt(result.promptText),
                    AutoApproveGroup.enabled().contains(.web) {
