@@ -44748,70 +44748,6 @@
         }
       }
     },
-    "Mochi thinks while the Claude or ChatGPT desktop app writes an answer, and tells you when it's ready, or when Claude waits for you to allow a tool. Coucou reads the apps' buttons and window title through Accessibility: it never clicks, types or sends anything, and nothing leaves your Mac. Claude Code sessions from the Claude app's Code tab show up without this." : {
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "يفكّر Mochi بينما يكتب تطبيق Claude أو ChatGPT إجابة، ويخبرك عندما تجهز، أو عندما ينتظر Claude موافقتك على أداة. يقرأ Coucou أزرار التطبيقين وعنوان النافذة عبر إمكانية الوصول: لا ينقر ولا يكتب ولا يرسل أي شيء، ولا يغادر أي شيء جهاز Mac. تظهر جلسات Claude Code من تبويب Code في تطبيق Claude دون ذلك."
-          }
-        },
-        "bn" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude বা ChatGPT ডেস্কটপ অ্যাপ উত্তর লেখার সময় Mochi ভাবে, এবং উত্তর তৈরি হলে বা Claude কোনো টুলের অনুমতির অপেক্ষায় থাকলে আপনাকে জানায়। Coucou অ্যাক্সেসিবিলিটির মাধ্যমে অ্যাপগুলোর বোতাম ও উইন্ডোর শিরোনাম পড়ে: এটি কখনো কিছু ক্লিক, টাইপ বা পাঠায় না, এবং কিছুই আপনার Mac ছেড়ে যায় না। Claude অ্যাপের Code ট্যাবের Claude Code সেশন এটি ছাড়াই দেখা যায়।"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mochi thinks while the Claude or ChatGPT desktop app writes an answer, and tells you when it's ready, or when Claude waits for you to allow a tool. Coucou reads the apps' buttons and window title through Accessibility: it never clicks, types or sends anything, and nothing leaves your Mac. Claude Code sessions from the Claude app's Code tab show up without this."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mochi piensa mientras la app de escritorio de Claude o ChatGPT escribe una respuesta, y te avisa cuando está lista o cuando Claude espera que autorices una herramienta. Coucou lee los botones y el título de la ventana de las apps mediante Accesibilidad: nunca hace clic, escribe ni envía nada, y nada sale de tu Mac. Las sesiones de Claude Code de la pestaña Code de la app de Claude aparecen sin esto."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mochi réfléchit pendant que l'app Claude ou ChatGPT écrit une réponse, et vous prévient quand elle est prête, ou quand Claude attend que vous autorisiez un outil. Coucou lit les boutons et le titre de la fenêtre des apps grâce à l'Accessibilité : il ne clique, ne tape et n'envoie jamais rien, et rien ne quitte votre Mac. Les sessions Claude Code de l'onglet Code de l'app Claude s'affichent sans cette option."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "जब Claude या ChatGPT डेस्कटॉप ऐप जवाब लिखता है, Mochi सोचता है, और जवाब तैयार होने पर या Claude के किसी टूल की अनुमति का इंतज़ार करने पर आपको बताता है। Coucou एक्सेसिबिलिटी के ज़रिए ऐप्स के बटन और विंडो का शीर्षक पढ़ता है: यह कभी कुछ क्लिक, टाइप या भेजता नहीं, और कुछ भी आपके Mac से बाहर नहीं जाता। Claude ऐप के Code टैब के Claude Code सेशन इसके बिना दिखते हैं।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mochi berpikir saat aplikasi desktop Claude atau ChatGPT menulis jawaban, dan memberi tahu saat jawabannya siap, atau saat Claude menunggu Anda mengizinkan sebuah alat. Coucou membaca tombol dan judul jendela aplikasi melalui Aksesibilitas: tidak pernah mengklik, mengetik, atau mengirim apa pun, dan tidak ada yang keluar dari Mac Anda. Sesi Claude Code dari tab Code aplikasi Claude tampil tanpa ini."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O Mochi pensa enquanto o app de desktop do Claude ou do ChatGPT escreve uma resposta e avisa quando ela fica pronta, ou quando o Claude espera você autorizar uma ferramenta. O Coucou lê os botões e o título da janela dos apps pela Acessibilidade: nunca clica, digita nem envia nada, e nada sai do seu Mac. As sessões do Claude Code da aba Code do app Claude aparecem sem isso."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mochi думает, пока приложение Claude или ChatGPT пишет ответ, и сообщает, когда ответ готов или когда Claude ждёт вашего разрешения на инструмент. Coucou читает кнопки и заголовок окна приложений через Универсальный доступ: он ничего не нажимает, не вводит и не отправляет, и ничего не покидает ваш Mac. Сессии Claude Code из вкладки Code приложения Claude видны и без этого."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "当 Claude 或 ChatGPT 桌面应用撰写回答时，Mochi 会思考，并在回答完成或 Claude 等待你允许某个工具时告诉你。Coucou 通过辅助功能读取应用的按钮和窗口标题：从不点击、输入或发送任何内容，也没有任何内容离开你的 Mac。Claude 应用 Code 标签页中的 Claude Code 会话无需此选项即可显示。"
-          }
-        }
-      }
-    },
     "Open ChatGPT" : {
       "localizations" : {
         "ar" : {
@@ -45623,6 +45559,32 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "✓ Одобрено само: %@"
+          }
+        }
+      }
+    },
+    "%@ wants to use a tool" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ хочет использовать инструмент"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ veut utiliser un outil"
+          }
+        }
+      }
+    },
+    "Mochi thinks while the Claude or ChatGPT desktop app writes an answer, and tells you when it's ready, or when Claude waits for you to allow a tool. Coucou reads the apps' buttons and window title through Accessibility, and nothing leaves your Mac. When Claude asks to use a tool, Allow, Always and Deny on Coucou's card press the same button in the app; nothing else is ever clicked or typed. Claude Code sessions from the Claude app's Code tab show up without this." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мочи думает, пока приложение Claude или ChatGPT пишет ответ, и говорит, когда ответ готов или когда Claude ждёт разрешения на инструмент. Coucou читает кнопки и заголовок окна через Универсальный доступ, ничего не покидает ваш Mac. Когда Claude просит инструмент, кнопки «Разрешить», «Всегда» и «Запретить» на карточке Coucou нажимают ту же кнопку в приложении; больше ничего никогда не нажимается и не вводится. Сессии Claude Code из вкладки Code видны и без этого."
           }
         }
       }

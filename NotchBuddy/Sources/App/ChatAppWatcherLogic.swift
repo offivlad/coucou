@@ -113,7 +113,8 @@ enum ChatAppWatcherLogic {
 
     private static let composerWords = ["dictat", "dicter", "voice mode", "mode vocal", "use voice",
                                         "attach", "add files", "add photos", "upload a file", "joindre",
-                                        "ajouter des fichiers", "ajouter des photos", "importer un fichier"]
+                                        "ajouter des fichiers", "ajouter des photos", "importer un fichier",
+                                        "прикрепить", "диктовк", "голосов", "добавить фа"]
 
     /// Classifies a button label. Returns nil for any other button.
     static func classify(_ rawLabel: String) -> ChatButtonKind? {
@@ -131,16 +132,18 @@ enum ChatAppWatcherLogic {
         if sendLabels.contains(label) { return .send }
         if composerWords.contains(where: { label.contains($0) }) { return .composer }
 
-        let allows = ["allow", "autoriser", "permitir", "erlauben", "zulassen"]
+        let allows = ["allow", "autoriser", "permitir", "erlauben", "zulassen", "разрешить", "разрешать"]
         if allows.contains(where: { label.contains($0) }) {
-            let once = ["once", "une fois", "una vez", "uma vez", "einmal"]
+            let once = ["once", "une fois", "una vez", "uma vez", "einmal", "один раз", "однократно"]
             let always = ["always", "toujours", "siempre", "sempre", "immer", "this chat",
-                          "cette conversation", "ce chat", "cette discussion"]
+                          "cette conversation", "ce chat", "cette discussion", "всегда", "этот чат",
+                          "в этом чате"]
             if once.contains(where: { label.contains($0) }) { return .allowOnce }
             if always.contains(where: { label.contains($0) }) { return .allowAlways }
             return nil
         }
-        let denies = ["deny", "refuser", "decline", "denegar", "negar", "ablehnen", "rechazar"]
+        let denies = ["deny", "refuser", "decline", "denegar", "negar", "ablehnen", "rechazar",
+                      "запретить", "отклонить", "отказать"]
         if denies.contains(label) { return .deny }
         return nil
     }

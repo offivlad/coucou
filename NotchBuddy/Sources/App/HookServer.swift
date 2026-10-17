@@ -713,13 +713,29 @@ final class HookServer: @unchecked Sendable {
         return working.contains(last.name) && age < 15 * 60
     }
 
-    /// The chat app shows a tool prompt. Coucou never answers it: the user clicks in the app.
+    /// The chat app shows a tool prompt. With no Claude Code request waiting, the notch shows
+    /// the approval card too: its Allow / Always / Deny press the same button in the app.
     @MainActor
     func chatAppNeedsApproval(agent: String, appName: String, quiet: Bool) {
         let id = "agent_\(agent)"
         upsertExternalAgent(id: id, name: agent)
         AppState.shared.updateTask(id: id, state: .approval)
         appendStep(id: id, step: String(localized: "⏳ Approval pending in \(appName)"))
+        #if !APPSTORE
+        let state = AppState.shared
+        if approvals.isEmpty, state.pendingApproval == nil {
+            state.pendingApproval = ApprovalInfo(sessionId: Self.chatApprovalPrefix + agent,
+                                                 tool: appName,
+                                                 command: String(localized: "\(appName) wants to use a tool"),
+                                                 inputKey: "", pillId: id, projectName: appName)
+            if !quiet {
+                state.isPinned = true
+                if focusBeforeApproval == nil { focusBeforeApproval = state.focusId }
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = id }
+                expandIfNeeded(to: .approval)
+            }
+        }
+        #endif
         guard !quiet else { return }
         SoundEngine.shared.play("question")
         if AppState.shared.focusId != id { setPillBadge(id: id, badge: .approval) }
@@ -730,7 +746,44 @@ final class HookServer: @unchecked Sendable {
         let id = "agent_\(agent)"
         clearPillBadge(id: id)
         AppState.shared.updateTask(id: id, state: .thinking)
+        closeChatApprovalCard(agent: agent)
     }
+
+    static let chatApprovalPrefix = "chat-approval-"
+
+    /// Takes the chat app's approval card down (answered, in the app or from the notch).
+    @MainActor
+    func closeChatApprovalCard(agent: String) {
+        let state = AppState.shared
+        guard state.pendingApproval?.sessionId == Self.chatApprovalPrefix + agent else { return }
+        state.pendingApproval = nil
+        state.isPinned = false
+        if let prev = focusBeforeApproval { state.focusId = prev }
+        focusBeforeApproval = nil
+        if state.view == .approval { state.view = state.tasks.isEmpty ? .empty : .overview }
+    }
+
+    #if !APPSTORE
+    /// A click on the approval card of a chat app: press the same choice in the app.
+    @MainActor
+    private func answerChatApproval(_ decision: String, info: ApprovalInfo) {
+        let agent = String(info.sessionId.dropFirst(Self.chatApprovalPrefix.count))
+        guard let app = ChatApp.allCases.first(where: { $0.agentTag == agent }) else { return }
+        let kind: ChatButtonKind = decision == "always" ? .allowAlways
+                                 : decision == "allow" ? .allowOnce : .deny
+        closeChatApprovalCard(agent: agent)
+        ChatAppWatcher.shared.answerApproval(app, kind: kind) { [weak self] ok in
+            nbLog("Chat app approval \(decision) in \(app.displayName): \(ok ? "pressed" : "prompt gone")")
+            if ok {
+                self?.chatAppApprovalCleared(agent: agent)
+            } else {
+                // The prompt moved or closed: send the user to the app.
+                NSWorkspace.shared.open(NSWorkspace.shared.urlForApplication(
+                    withBundleIdentifier: app.bundleIds[0]) ?? URL(fileURLWithPath: "/Applications"))
+            }
+        }
+    }
+    #endif
 
     // MARK: - Agent validation + dynamic pill
 
@@ -993,6 +1046,12 @@ final class HookServer: @unchecked Sendable {
             DemoEngine.shared.handleApprovalDecision(decision)
             return
         }
+        #if !APPSTORE
+        if let shown = AppState.shared.pendingApproval, shown.sessionId.hasPrefix(Self.chatApprovalPrefix) {
+            answerChatApproval(decision, info: shown)
+            return
+        }
+        #endif
         guard let head = approvals.head else {
             // A card with nothing behind it any more: just close it.
             let s = AppState.shared

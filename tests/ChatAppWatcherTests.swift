@@ -31,6 +31,13 @@ enum ChatAppWatcherTests {
     // MARK: - Labels
 
     static func testClassify() {
+        // Russian builds of the Claude app.
+        precondition(ChatAppWatcherLogic.classify("Остановить ответ") == .stop, "ru stop")
+        precondition(ChatAppWatcherLogic.classify("Отправить") == .send, "ru send")
+        precondition(ChatAppWatcherLogic.classify("Разрешить один раз") == .allowOnce, "ru allow once")
+        precondition(ChatAppWatcherLogic.classify("Всегда разрешать") == .allowAlways, "ru allow always")
+        precondition(ChatAppWatcherLogic.classify("Запретить") == .deny, "ru deny")
+        precondition(ChatAppWatcherLogic.classify("Добавить файлы") == .composer, "ru attach")
         let stops = ["Stop response", "Stop Response", "Stop generating", "Stop streaming", "Stop",
                      "Arrêter la réponse", "Arrêter la génération", "Arrêter la diffusion en continu",
                      "Arrêter", "Detener respuesta", "Antwort stoppen", "  stop   response "]

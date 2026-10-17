@@ -1006,7 +1006,7 @@ struct SettingsView: View {
 
         GroupBox("Claude & ChatGPT apps") {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Mochi thinks while the Claude or ChatGPT desktop app writes an answer, and tells you when it's ready, or when Claude waits for you to allow a tool. Coucou reads the apps' buttons and window title through Accessibility: it never clicks, types or sends anything, and nothing leaves your Mac. Claude Code sessions from the Claude app's Code tab show up without this.")
+                Text("Mochi thinks while the Claude or ChatGPT desktop app writes an answer, and tells you when it's ready, or when Claude waits for you to allow a tool. Coucou reads the apps' buttons and window title through Accessibility, and nothing leaves your Mac. When Claude asks to use a tool, Allow, Always and Deny on Coucou's card press the same button in the app; nothing else is ever clicked or typed. Claude Code sessions from the Claude app's Code tab show up without this.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -8,8 +8,9 @@ import ApplicationServices
 // Settings → Agents, Coucou reads their windows through the Accessibility API: a stop
 // button means an answer is being written, a tool prompt (Claude's "Allow once") means
 // the app waits for you. Mochi thinks on the app's pill meanwhile and says when the
-// answer is ready. Nothing is clicked, typed or sent, and nothing leaves the Mac: only
-// button labels and the window title are read.
+// answer is ready. Nothing leaves the Mac: only button labels and the window title are
+// read. The one thing ever pressed is the tool prompt's Allow / Always / Deny, and only
+// after you chose the same on Coucou's approval card.
 //
 // Cost: the timer runs only while the option is on, Accessibility is granted and one of
 // the apps is open. Each tick re-reads the message box found on the first scan (a few
@@ -32,6 +33,8 @@ private final class ChatAppScanner: @unchecked Sendable {
     /// Whole-window walks in a row that found no message box: each one doubles the wait.
     private var boxMisses: [pid_t: Int] = [:]
     private var accessibilityAsked: Set<pid_t> = []
+    /// Buttons of the tool prompt seen by the last scan, to press them from the notch.
+    private var promptButtons: [pid_t: [ChatButtonKind: AXUIElement]] = [:]
 
     private static let fullScanBudget = 4_000
     private static let boxScanBudget  = 400
@@ -54,6 +57,17 @@ private final class ChatAppScanner: @unchecked Sendable {
         lastFullScan[pid] = nil
         boxMisses[pid] = nil
         accessibilityAsked.remove(pid)
+        promptButtons[pid] = nil
+    }
+
+    /// Presses a button of the tool prompt the last scan saw. Only ever called after the
+    /// user clicked the same choice in the notch. False when the prompt is gone.
+    func press(pid: pid_t, kind: ChatButtonKind) -> Bool {
+        guard let button = promptButtons[pid]?[kind] else { return false }
+        AXUIElementSetMessagingTimeout(button, 0.5)
+        let ok = AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
+        if ok { promptButtons[pid] = nil }
+        return ok
     }
 
     /// One look at the app. `wantsFullScan` also walks the whole window when the message
@@ -95,6 +109,7 @@ private final class ChatAppScanner: @unchecked Sendable {
                 boxMisses[pid] = misses + 1
             } else {
                 let walk = walk(from: windows, budget: Self.fullScanBudget)
+                promptButtons[pid] = walk.prompt.isEmpty ? nil : walk.prompt
                 if let box = walk.box {
                     boxes[pid] = box
                     boxMisses[pid] = 0
@@ -123,6 +138,8 @@ private final class ChatAppScanner: @unchecked Sendable {
         var box: AXUIElement? = nil
         /// The walk ran out of elements before running out of budget.
         var complete = false
+        /// Allow once / Allow always / Deny buttons, first of each.
+        var prompt: [ChatButtonKind: AXUIElement] = [:]
     }
 
     private struct Visit {
@@ -159,6 +176,9 @@ private final class ChatAppScanner: @unchecked Sendable {
                 for case let label as String in [values[1], values[2], values[3]] {
                     guard let kind = ChatAppWatcherLogic.classify(label) else { continue }
                     result.kinds.append(kind)
+                    if kind == .allowOnce || kind == .allowAlways || kind == .deny, result.prompt[kind] == nil {
+                        result.prompt[kind] = visit.element
+                    }
                     if result.box == nil, kind == .stop || kind == .send || kind == .composer {
                         result.box = visit.grandparent ?? visit.parent
                     }
@@ -311,11 +331,27 @@ final class ChatAppWatcher {
         }
         pids[app] = nil
         titles[app] = nil
+        HookServer.shared.closeChatApprovalCard(agent: app.agentTag)
         if trackers[app]?.isActive == true {
             // Leave the pill as an idle one rather than thinking forever.
             HookServer.shared.ingestLocalEvent(name: "SessionEnd", payload: basePayload(app))
         }
         trackers[app] = nil
+    }
+
+    // MARK: - Answering a tool prompt from the notch
+
+    /// Presses Allow once / Allow always / Deny in the app, for the choice the user made
+    /// on the approval card. Calls back on the main actor with whether the button was found.
+    func answerApproval(_ app: ChatApp, kind: ChatButtonKind, done: @escaping @MainActor (Bool) -> Void) {
+        guard let pid = pids[app] else { done(false); return }
+        let scanner = self.scanner
+        scanner.queue.async {
+            var ok = scanner.press(pid: pid, kind: kind)
+            // No "Allow once" on this prompt: "Allow always" is the only way to allow it.
+            if !ok, kind == .allowOnce { ok = scanner.press(pid: pid, kind: .allowAlways) }
+            DispatchQueue.main.async { MainActor.assumeIsolated { done(ok) } }
+        }
     }
 
     // MARK: - Poll
@@ -378,6 +414,7 @@ final class ChatAppWatcher {
             case .finished:
                 payload["last_assistant_message"] = title.map { String(localized: "Answer ready · \($0)") }
                     ?? String(localized: "Answer ready")
+                HookServer.shared.closeChatApprovalCard(agent: app.agentTag)
                 AppState.shared.chatAnswerPillId = app.pillId
                 HookServer.shared.ingestLocalEvent(name: "Stop", payload: payload)
             }
