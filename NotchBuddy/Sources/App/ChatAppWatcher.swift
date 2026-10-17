@@ -646,6 +646,11 @@ final class ChatAppWatcher {
             }
         }
 
+        // A prompt card for the open chat that is no longer on screen: take it down.
+        if result.signal == .generating || result.signal == .idle {
+            HookServer.shared.closeChatApprovalCard(agent: app.agentTag)
+        }
+
         // Every chat: from the sidebar when it shows, else the open chat alone.
         // Once the sidebar has been seen, a scan that missed it (cut short, app busy) changes
         // nothing: falling back to the open chat alone would report a false "ready".
@@ -690,6 +695,8 @@ final class ChatAppWatcher {
         let wasActive = list.isActive
         let events = list.update(chats)
         listTrackers[app] = list
+        // No chat waits any more: a "waiting" card left behind goes.
+        if list.waiting.isEmpty { HookServer.shared.closeChatWaitingCard(agent: app.agentTag, title: nil) }
         guard !events.isEmpty else { return }
         appendAppLog("nb.log", "[ChatApps] chats: running \(list.running.count), waiting \(list.waiting.count)")
 

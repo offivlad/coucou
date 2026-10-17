@@ -531,7 +531,11 @@ struct IslandHeader: View {
 
     /// Pending approval or mail draft: the island refuses to fold (fsm.isHeldOpen), so the
     /// close cross is not shown.
-    private var heldOpen: Bool { state.pendingApproval != nil || state.voiceMailDraft != nil }
+    /// A Claude Code request waiting for an answer keeps the island open; a card about a
+    /// chat of the Claude app does not (the chat can be answered in the app).
+    private var heldOpen: Bool {
+        (state.pendingApproval.map { !$0.sessionId.hasPrefix("chat-") } ?? false) || state.voiceMailDraft != nil
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -586,6 +590,10 @@ struct IslandHeader: View {
                     // Fold back to the compact island now, without waiting for the timer.
                     if !heldOpen {
                         Button(action: {
+                            if state.pendingApproval?.sessionId.hasPrefix("chat-") == true {
+                                state.pendingApproval = nil
+                                state.isPinned = false
+                            }
                             NotificationCenter.default.post(name: .islandCollapse, object: nil)
                         }) {
                             Image(systemName: "xmark")

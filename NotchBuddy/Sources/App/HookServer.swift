@@ -781,10 +781,10 @@ final class HookServer: @unchecked Sendable {
     }
 
     @MainActor
-    func closeChatWaitingCard(agent: String, title: String) {
+    func closeChatWaitingCard(agent: String, title: String?) {
         let state = AppState.shared
         guard let shown = state.pendingApproval, shown.sessionId == Self.chatWaitingPrefix + agent,
-              shown.projectName == title else { return }
+              title == nil || shown.projectName == title else { return }
         state.pendingApproval = nil
         state.isPinned = false
         if let prev = focusBeforeApproval { state.focusId = prev }
