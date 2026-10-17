@@ -371,6 +371,12 @@ final class FlowDictation: ObservableObject {
             let latest = self.current === listen
             if latest { self.current = nil }
             guard !text.isEmpty else { if latest { self.pill.rest() }; return }
+            // "Джарвис, …" / "Мочи, …": a command for the Mac, done by Claude Code.
+            if let command = MacAssistant.command(in: text) {
+                if latest { self.pill.rest() }
+                MacAssistant.shared.run(command)
+                return
+            }
             // "Спроси Клод …": a new chat in the Claude app instead of pasting.
             if let question = AskClaude.question(in: text) {
                 if latest { self.pill.rest() }

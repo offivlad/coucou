@@ -828,7 +828,8 @@ final class HookServer: @unchecked Sendable {
         }
         // The desktop app pills read "Claude" / "ChatGPT", not their coucou_agent tag.
         let isChatApp = ChatApp.allCases.contains { $0.pillId == id }
-        let displayName = isChatApp ? (PillCatalog.definition(for: id)?.name ?? name) : name
+        let displayName = isChatApp ? (PillCatalog.definition(for: id)?.name ?? name)
+            : id == "agent_jarvis" ? "Jarvis" : name
         let task = AgentTask(id: id, name: displayName, color: color, state: .idle, steps: [], source: .agent)
         if let claudeIdx = state.tasks.firstIndex(where: { $0.id == "integration_claude" }) {
             state.tasks.insert(task, at: claudeIdx + 1)

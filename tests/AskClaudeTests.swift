@@ -13,6 +13,13 @@ enum AskClaudeTests {
         precondition(q("Привет, как дела") == nil, "normal dictation")
         precondition(q("Спроси Клодетту про встречу") == nil, "other name")
         precondition(q("спроси маму про ужин") == nil, "other person")
+        let c = AskClaudeLogic.assistantCommand(fromDictation:)
+        precondition(c("Джарвис, не давай экрану гаснуть") == "Не давай экрану гаснуть", "jarvis ru")
+        precondition(c("Эй, Мочи, открой папку загрузки") == "Открой папку загрузки", "hey mochi")
+        precondition(c("Jarvis set volume to 30") == "Set volume to 30", "en")
+        precondition(c("Мочи") == nil, "no command")
+        precondition(c("Мочилово было вчера") == nil, "other word")
+        precondition(c("Спроси Клод что-то") == nil, "ask claude is not a command")
         print("AskClaudeLogic: all cases passed")
     }
 }

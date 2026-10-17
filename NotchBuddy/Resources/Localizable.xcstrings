@@ -45658,6 +45658,96 @@
           }
         }
       }
+    },
+    "Jarvis: commands for the Mac" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Джарвис: команды для Mac"
+          }
+        }
+      }
+    },
+    "Hold the dictation key and say «Джарвис, …» or «Мочи, …» then what to do: «не давай экрану гаснуть», «громкость на 30», «открой папку Загрузки». Claude Code on this Mac does it with your Claude plan and Mochi says what it did. It never deletes files or uses sudo." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зажмите клавишу диктовки и скажите «Джарвис, …» или «Мочи, …», а затем что сделать: «не давай экрану гаснуть», «громкость на 30», «открой папку Загрузки». Claude Code на этом Mac выполнит это по вашей подписке Claude, а Мочи скажет, что сделал. Файлы он никогда не удаляет и sudo не использует."
+          }
+        }
+      }
+    },
+    "Do commands from dictation" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выполнять команды из диктовки"
+          }
+        }
+      }
+    },
+    "Claude Code is not installed: it is needed for the commands." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code не установлен: он нужен для команд."
+          }
+        }
+      }
+    },
+    "Claude Code could not start." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не получилось запустить Claude Code."
+          }
+        }
+      }
+    },
+    "It took too long, I stopped." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слишком долго, я остановился."
+          }
+        }
+      }
+    },
+    "Something went wrong." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Что-то пошло не так."
+          }
+        }
+      }
+    },
+    "Done." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готово."
+          }
+        }
+      }
+    },
+    "Claude Code stopped. Is it signed in? Run claude in Terminal once." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code остановился. Вы вошли в аккаунт? Запустите claude в Терминале один раз."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

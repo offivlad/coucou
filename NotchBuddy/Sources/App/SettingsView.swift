@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var autoApprove: Set<AutoApproveGroup> = AutoApproveGroup.enabled()
     @AppStorage("askClaudeByVoice") private var askClaudeOn: Bool = true
     @AppStorage("askClaudeAutoSend") private var askClaudeSend: Bool = true
+    @AppStorage("macAssistantByVoice") private var macAssistantOn: Bool = true
     @State private var apiKey: String = KeychainStore.shared.get("anthropic-api-key") ?? ""
 
     // Claude model — dynamic list fetched from the API, static fallback if unavailable
@@ -976,6 +977,21 @@ struct SettingsView: View {
         #endif
 
         #if !APPSTORE
+        GroupBox(String(localized: "Jarvis: commands for the Mac")) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(String(localized: "Hold the dictation key and say «Джарвис, …» or «Мочи, …» then what to do: «не давай экрану гаснуть», «громкость на 30», «открой папку Загрузки». Claude Code on this Mac does it with your Claude plan and Mochi says what it did. It never deletes files or uses sudo."))
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Toggle(String(localized: "Do commands from dictation"), isOn: $macAssistantOn)
+                if !MacAssistant.isAvailable {
+                    Text(String(localized: "Claude Code is not installed: it is needed for the commands."))
+                        .font(.caption).foregroundColor(.orange)
+                }
+            }
+            .padding(6)
+        }
+
         GroupBox(String(localized: "Ask Claude by voice")) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(String(localized: "Hold the dictation key and say «Спроси Клод…» or «Ask Claude…» then your question: a new chat opens in the Claude app with it. Uses your Claude plan, no API key."))

@@ -30,4 +30,24 @@ enum AskClaudeLogic {
         }
         return nil
     }
+
+    /// Names the Mac assistant answers to, after an optional "эй / окей / hey / ok".
+    private static let callWords = ["эй", "окей", "ок", "hey", "ok", "okay"]
+    private static let assistantNames = ["джарвис", "jarvis", "мочи", "mochi", "моти"]
+
+    /// The command after "Джарвис, …" / "Мочи, …", or nil when the dictation is not one.
+    static func assistantCommand(fromDictation text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var lower = Substring(trimmed.lowercased())
+        if let call = callWords.first(where: { lower.hasPrefix($0 + " ") || lower.hasPrefix($0 + ",") }) {
+            lower = lower.dropFirst(call.count).drop(while: { $0 == " " || $0 == "," })
+        }
+        guard let name = assistantNames.first(where: { lower.hasPrefix($0) }) else { return nil }
+        let rest = lower.dropFirst(name.count)
+        if let next = rest.first, next.isLetter { return nil }
+        let command = String(trimmed.dropFirst(trimmed.count - rest.count))
+            .trimmingCharacters(in: CharacterSet(charactersIn: " ,.:;!—–-").union(.whitespacesAndNewlines))
+        guard !command.isEmpty else { return nil }
+        return command.prefix(1).uppercased() + command.dropFirst()
+    }
 }
