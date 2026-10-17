@@ -7,6 +7,8 @@ struct SettingsView: View {
     @ObservedObject private var demoEngine = DemoEngine.shared
     @AppStorage(GreetingWords.nameKey) private var greetingName: String = ""
     @State private var autoApprove: Set<AutoApproveGroup> = AutoApproveGroup.enabled()
+    @AppStorage("askClaudeByVoice") private var askClaudeOn: Bool = true
+    @AppStorage("askClaudeAutoSend") private var askClaudeSend: Bool = true
     @State private var apiKey: String = KeychainStore.shared.get("anthropic-api-key") ?? ""
 
     // Claude model — dynamic list fetched from the API, static fallback if unavailable
@@ -970,6 +972,21 @@ struct SettingsView: View {
                 HookServer.hermesSupportsApprovalTransport()
             }.value
             await MainActor.run { hermesSupportsApprovals = result }
+        }
+        #endif
+
+        #if !APPSTORE
+        GroupBox(String(localized: "Ask Claude by voice")) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(String(localized: "Hold the dictation key and say «Спроси Клод…» or «Ask Claude…» then your question: a new chat opens in the Claude app with it. Uses your Claude plan, no API key."))
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Toggle(String(localized: "Start a Claude chat from dictation"), isOn: $askClaudeOn)
+                Toggle(String(localized: "Send the question right away"), isOn: $askClaudeSend)
+                    .disabled(!askClaudeOn)
+            }
+            .padding(6)
         }
         #endif
 

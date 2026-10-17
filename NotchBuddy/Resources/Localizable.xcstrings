@@ -45618,6 +45618,46 @@
           }
         }
       }
+    },
+    "Ask Claude by voice" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Спросить Claude голосом"
+          }
+        }
+      }
+    },
+    "Hold the dictation key and say «Спроси Клод…» or «Ask Claude…» then your question: a new chat opens in the Claude app with it. Uses your Claude plan, no API key." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зажмите клавишу диктовки и скажите «Спроси Клод…», затем вопрос: в приложении Claude откроется новый чат с ним. Работает по вашей подписке Claude, без API-ключа."
+          }
+        }
+      }
+    },
+    "Start a Claude chat from dictation" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создавать чат Claude из диктовки"
+          }
+        }
+      }
+    },
+    "Send the question right away" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сразу отправлять вопрос"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
