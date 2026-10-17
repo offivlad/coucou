@@ -41,7 +41,7 @@ enum WakePhrase {
             ["ok",  "cou", "cou"],
             ["hey", "coucou"],
             ["hey", "cou", "cou"],
-        ]
+        ] + jarvisNames.map { [$0] }
 
         // Find LAST occurrence of any pattern
         var lastMatchEnd: Int? = nil   // word index immediately after the matched pattern
@@ -79,6 +79,15 @@ enum WakePhrase {
          .components(separatedBy: .punctuationCharacters)
          .joined()
          .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// "Джарвис" as speech recognition writes it: a single word wakes Jarvis
+    /// (commands then go to Claude Code on the Mac, MacAssistant).
+    static let jarvisNames = ["джарвис", "jarvis", "жарвис", "джервис", "jervis", "джарвиз", "джарвес", "jarvi"]
+
+    /// True when the wake phrase in `raw` is Jarvis rather than "OK Coucou".
+    static func isJarvis(_ raw: String) -> Bool {
+        raw.components(separatedBy: .whitespaces).map(normWord).contains { jarvisNames.contains($0) }
     }
 
     // MARK: - Private

@@ -598,7 +598,8 @@ final class VoiceEngine: ObservableObject {
         directInitialTimeout  = Self.wakeFirstWordTimeout
         audio?.bypassVAD      = true
         duckMusic()
-        appendAppLog("nb.log", "[Voice] wake")
+        wakeIsJarvis = WakePhrase.isJarvis(transcript)
+        appendAppLog("nb.log", "[Voice] wake\(wakeIsJarvis ? " (Jarvis)" : "")")
         NotificationCenter.default.post(name: .voiceWoke, object: nil)
         resetSilenceTimer()
         let maxItem = DispatchWorkItem { [weak self] in
@@ -675,6 +676,9 @@ final class VoiceEngine: ObservableObject {
     /// Idempotent: if not in command mode, only cancels timers.
     /// Does NOT call endWindow() or resetVAD() — prevents closing a freshly
     /// opened wake window when the result view is dismissed.
+    /// The last wake word was "Джарвис": the command goes to MacAssistant (Claude Code).
+    private var wakeIsJarvis = false
+
     private func endCommand(postFinished: Bool) {
         silenceWork?.cancel();    silenceWork    = nil
         commandMaxWork?.cancel(); commandMaxWork = nil
@@ -688,6 +692,13 @@ final class VoiceEngine: ObservableObject {
         appendAppLog("nb.log", "[Voice] command end (had transcript: \(!commandTranscript.isEmpty))")
         if !postFinished { commandTranscript = "" }
         isListeningForCommand = false
+        if postFinished, wakeIsJarvis, MacAssistant.isEnabled, MacAssistant.isAvailable {
+            let cmd = commandTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+            wakeIsJarvis = false
+            NotificationCenter.default.post(name: .voiceFinished, object: nil)
+            if !cmd.isEmpty { MacAssistant.shared.run(cmd) }
+            return
+        }
         if postFinished {
             let cmd = commandTranscript
             NotificationCenter.default.post(name: .voiceFinished,

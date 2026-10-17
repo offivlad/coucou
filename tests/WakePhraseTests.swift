@@ -19,6 +19,12 @@ enum WakePhraseTests {
         checkMatch("hey coucou",             WakePhrase.split("hey coucou"),             cmd: "")
         checkMatch("Hey Coucou",             WakePhrase.split("Hey Coucou"),             cmd: "")
 
+        // Jarvis: one word wakes him, the rest is the command
+        checkMatch("Джарвис, громкость на 30", WakePhrase.split("Джарвис, громкость на 30"), cmd: "громкость на 30")
+        checkMatch("Jarvis open Safari",       WakePhrase.split("Jarvis open Safari"),       cmd: "open Safari")
+        precondition(WakePhrase.isJarvis("Джарвис, громкость на 30"), "isJarvis ru")
+        precondition(!WakePhrase.isJarvis("ok coucou play music"), "coucou is not Jarvis")
+
         // Command extracted from original text (casing/punctuation preserved)
         checkMatch("Okay, Coucou, ajoute GitHub",
                    WakePhrase.split("Okay, Coucou, ajoute GitHub"),             cmd: "ajoute GitHub")
