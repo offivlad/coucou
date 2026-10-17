@@ -165,6 +165,15 @@ enum ChatAppWatcherLogic {
         return .unknown
     }
 
+    /// True when a tool prompt asks to search the web or load a web page (its card text).
+    static func isWebPrompt(_ text: String?) -> Bool {
+        guard let text else { return false }
+        let t = normalize(text)
+        let marks = ["веб-страниц", "веб страниц", "web page", "webpage", "web search", "search the web",
+                     "поиск в интернете", "искать в интернете", "fetch", "page web", "recherche web"]
+        return marks.contains { t.contains($0) }
+    }
+
     /// The conversation title worth showing, or nil when the window title is only the app name.
     static func conversationTitle(_ rawTitle: String?, app: ChatApp) -> String? {
         guard let rawTitle else { return nil }
@@ -246,6 +255,11 @@ struct ChatAppTracker: Sendable {
             events.append(.finished(duration: duration))
         }
         return events
+    }
+
+    /// The prompt was answered from Coucou: the next prompt is reported again.
+    mutating func clearApproval() {
+        waitingApproval = false
     }
 
     /// The app quit or watching stopped: forget the running answer without reporting it.

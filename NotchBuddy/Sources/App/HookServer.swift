@@ -751,6 +751,17 @@ final class HookServer: @unchecked Sendable {
 
     static let chatApprovalPrefix = "chat-approval-"
 
+    /// A chat app prompt the auto-approve rules answer: a step on the pill, no card.
+    @MainActor
+    func chatAppAutoApproved(agent: String, what: String) {
+        let id = "agent_\(agent)"
+        upsertExternalAgent(id: id, name: agent)
+        let url = what.split(separator: " ").first(where: { $0.hasPrefix("http") }).map(String.init)
+        appendStep(id: id, step: String(localized: "✓ Auto-approved: \(url ?? String(localized: "web page"))"))
+        AppState.shared.autoApprovedToday += 1
+        nbLog("Chat app prompt auto-approved: \(String(what.prefix(120)))")
+    }
+
     /// Takes the chat app's approval card down (answered, in the app or from the notch).
     @MainActor
     func closeChatApprovalCard(agent: String) {

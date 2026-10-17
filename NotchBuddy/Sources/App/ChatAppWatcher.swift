@@ -23,6 +23,8 @@ private final class ChatAppScanner: @unchecked Sendable {
     struct Result: Sendable {
         let signal: ChatAppSignal
         let title: String?
+        /// Texts of the tool prompt (its title, the URL…), when one is showing.
+        var promptText: String? = nil
     }
 
     let queue = DispatchQueue(label: "fr.louisraille.coucou.chat-apps", qos: .utility)
@@ -84,11 +86,13 @@ private final class ChatAppScanner: @unchecked Sendable {
         let title = windowTitle(root)
 
         var kinds: [ChatButtonKind] = []
+        var promptText: String? = nil
         var complete = false
         var boxFound = false
 
         if let box = boxes[pid] {
             let walk = walk(from: [box], budget: Self.boxScanBudget)
+            if let promptBox = walk.promptBox { promptText = texts(in: promptBox) }
             if walk.kinds.contains(where: { $0 == .stop || $0 == .send || $0 == .composer }) {
                 kinds = walk.kinds
                 complete = walk.complete
@@ -110,6 +114,7 @@ private final class ChatAppScanner: @unchecked Sendable {
             } else {
                 let walk = walk(from: windows, budget: Self.fullScanBudget)
                 promptButtons[pid] = walk.prompt.isEmpty ? nil : walk.prompt
+                if let box = walk.promptBox { promptText = texts(in: box) }
                 if let box = walk.box {
                     boxes[pid] = box
                     boxMisses[pid] = 0
@@ -127,7 +132,8 @@ private final class ChatAppScanner: @unchecked Sendable {
         }
 
         let signal = ChatAppWatcherLogic.signal(for: kinds, complete: complete, app: app)
-        return Result(signal: signal, title: ChatAppWatcherLogic.conversationTitle(title, app: app))
+        return Result(signal: signal, title: ChatAppWatcherLogic.conversationTitle(title, app: app),
+                      promptText: signal == .needsApproval ? promptText : nil)
     }
 
     // MARK: - Diagnostic map
@@ -183,12 +189,15 @@ private final class ChatAppScanner: @unchecked Sendable {
         var complete = false
         /// Allow once / Allow always / Deny buttons, first of each.
         var prompt: [ChatButtonKind: AXUIElement] = [:]
+        /// The element around the prompt, to read its title.
+        var promptBox: AXUIElement? = nil
     }
 
     private struct Visit {
         let element: AXUIElement
         let parent: AXUIElement?
         let grandparent: AXUIElement?
+        var ancestors: [AXUIElement] = []
         let depth: Int
     }
 
@@ -196,7 +205,7 @@ private final class ChatAppScanner: @unchecked Sendable {
     /// the end of the window, after the conversation, so they come up early.
     private func walk(from roots: [AXUIElement], budget: Int) -> Walk {
         var result = Walk()
-        var stack = roots.map { Visit(element: $0, parent: nil, grandparent: nil, depth: 0) }
+        var stack = roots.map { Visit(element: $0, parent: nil, grandparent: nil, ancestors: [], depth: 0) }
         var visited = 0
         let deadline = Date().addingTimeInterval(Self.walkDeadline)
         let attributes = [kAXRoleAttribute, kAXDescriptionAttribute, kAXTitleAttribute,
@@ -221,6 +230,10 @@ private final class ChatAppScanner: @unchecked Sendable {
                     result.kinds.append(kind)
                     if kind == .allowOnce || kind == .allowAlways || kind == .deny, result.prompt[kind] == nil {
                         result.prompt[kind] = visit.element
+                        // The prompt card: a few levels above its buttons, holding its title.
+                        if result.promptBox == nil {
+                            result.promptBox = visit.ancestors.dropLast(3).last ?? visit.ancestors.first
+                        }
                     }
                     if result.box == nil, kind == .stop || kind == .send || kind == .composer {
                         result.box = visit.grandparent ?? visit.parent
@@ -233,11 +246,35 @@ private final class ChatAppScanner: @unchecked Sendable {
 
             for child in Self.axElements(values[4]) {
                 stack.append(Visit(element: child, parent: visit.element,
-                                   grandparent: visit.parent, depth: visit.depth + 1))
+                                   grandparent: visit.parent,
+                                   ancestors: Array((visit.ancestors + [visit.element]).suffix(6)),
+                                   depth: visit.depth + 1))
             }
         }
         result.complete = true
         return result
+    }
+
+    /// Static texts and headings under `root` (the prompt card), joined: "Claude wants to
+    /// load a web page URL https://…". A small budget: the card is a few dozen elements.
+    private func texts(in root: AXUIElement) -> String {
+        var out: [String] = []
+        var stack = [root]
+        var visited = 0
+        while let el = stack.popLast(), visited < 250 {
+            visited += 1
+            var ref: CFTypeRef?
+            if AXUIElementCopyAttributeValue(el, kAXRoleAttribute as CFString, &ref) == .success,
+               let role = ref as? String, role == "AXStaticText" || role == "AXHeading" || role == "AXLink" {
+                for attr in [kAXValueAttribute, kAXTitleAttribute, kAXDescriptionAttribute] {
+                    var v: CFTypeRef?
+                    if AXUIElementCopyAttributeValue(el, attr as CFString, &v) == .success,
+                       let text = v as? String, !text.isEmpty { out.append(text); break }
+                }
+            }
+            stack.append(contentsOf: elements(el, kAXChildrenAttribute).reversed())
+        }
+        return out.joined(separator: " ")
     }
 
     // MARK: - AX helpers
@@ -411,11 +448,23 @@ final class ChatAppWatcher {
     func answerApproval(_ app: ChatApp, kind: ChatButtonKind, done: @escaping @MainActor (Bool) -> Void) {
         guard let pid = pids[app] else { done(false); return }
         let scanner = self.scanner
+        let inFront = NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
+        let previous = NSWorkspace.shared.frontmostApplication?.processIdentifier
         scanner.queue.async {
+            if inFront {
+                // The app is in front: its own shortcut is the surest way.
+                Self.sendShortcut(kind, to: nil)
+                Thread.sleep(forTimeInterval: 0.8)
+                let gone = scanner.scan(pid: pid, app: app, wantsFullScan: true).signal != .needsApproval
+                appendAppLog("nb.log", "Chat app prompt answered by shortcut (app in front): \(gone ? "done" : "prompt still there")")
+                DispatchQueue.main.async { MainActor.assumeIsolated { done(gone) } }
+                return
+            }
             var pressed = scanner.press(pid: pid, kind: kind)
             if !pressed, kind == .allowOnce { pressed = scanner.press(pid: pid, kind: .allowAlways) }
             Thread.sleep(forTimeInterval: 0.8)
             if scanner.scan(pid: pid, app: app, wantsFullScan: true).signal != .needsApproval {
+                appendAppLog("nb.log", "Chat app prompt answered by Accessibility press")
                 DispatchQueue.main.async { MainActor.assumeIsolated { done(true) } }
                 return
             }
@@ -423,6 +472,7 @@ final class ChatAppWatcher {
             Self.sendShortcut(kind, to: pid)
             Thread.sleep(forTimeInterval: 0.8)
             if scanner.scan(pid: pid, app: app, wantsFullScan: true).signal != .needsApproval {
+                appendAppLog("nb.log", "Chat app prompt answered by shortcut sent to the app")
                 DispatchQueue.main.async { MainActor.assumeIsolated { done(true) } }
                 return
             }
@@ -434,6 +484,11 @@ final class ChatAppWatcher {
             Self.sendShortcut(kind, to: nil)
             Thread.sleep(forTimeInterval: 0.8)
             let gone = scanner.scan(pid: pid, app: app, wantsFullScan: true).signal != .needsApproval
+            appendAppLog("nb.log", "Chat app prompt answered after bringing the app forward: \(gone ? "done" : "prompt still there")")
+            // Give the front back to the app the user was in.
+            if let previous, previous != pid {
+                DispatchQueue.main.sync { NSRunningApplication(processIdentifier: previous)?.activate(options: []) }
+            }
             DispatchQueue.main.async { MainActor.assumeIsolated { done(gone) } }
         }
     }
@@ -507,6 +562,18 @@ final class ChatAppWatcher {
                 payload["prompt"] = title ?? String(localized: "Writing an answer…")
                 HookServer.shared.ingestLocalEvent(name: "UserPromptSubmit", payload: payload)
             case .needsApproval:
+                // Auto-approve → "Web search and pages" also covers the app's web page prompts.
+                if app == .claude, ChatAppWatcherLogic.isWebPrompt(result.promptText),
+                   AutoApproveGroup.enabled().contains(.web) {
+                    HookServer.shared.chatAppAutoApproved(agent: app.agentTag, what: result.promptText ?? "")
+                    answerApproval(app, kind: .allowOnce) { [weak self] ok in
+                        appendAppLog("nb.log", "Chat app web prompt auto-approved: \(ok ? "done" : "prompt still there")")
+                        // Ready for the next page Claude asks for. On a failure the prompt stays
+                        // with the user: never send the shortcut again and again.
+                        if ok { self?.trackers[app]?.clearApproval() }
+                    }
+                    break
+                }
                 HookServer.shared.chatAppNeedsApproval(agent: app.agentTag, appName: app.displayName, quiet: quiet)
             case .approvalCleared:
                 HookServer.shared.chatAppApprovalCleared(agent: app.agentTag)

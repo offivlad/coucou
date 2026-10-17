@@ -32,6 +32,10 @@ enum ChatAppWatcherTests {
 
     static func testClassify() {
         // Russian builds of the Claude app.
+        precondition(ChatAppWatcherLogic.isWebPrompt("Claude хочет загрузить веб-страницу URL https://gk-auto.by/"), "ru web prompt")
+        precondition(ChatAppWatcherLogic.isWebPrompt("Claude wants to fetch a web page"), "en web prompt")
+        precondition(!ChatAppWatcherLogic.isWebPrompt("Claude wants to use Create post from WordPress"), "mcp is not web")
+        precondition(!ChatAppWatcherLogic.isWebPrompt(nil), "no text")
         precondition(ChatAppWatcherLogic.classify("Остановить ответ") == .stop, "ru stop")
         precondition(ChatAppWatcherLogic.classify("Отправить") == .send, "ru send")
         precondition(ChatAppWatcherLogic.classify("Разрешить один раз") == .allowOnce, "ru allow once")
