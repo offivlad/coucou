@@ -45778,6 +45778,76 @@
           }
         }
       }
+    },
+    "Piper — Ruslan (offline, Russian)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Piper — Руслан (офлайн, русский)"
+          }
+        }
+      }
+    },
+    "Ruslan is installed: Russian answers are spoken offline." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Руслан установлен: русские ответы озвучиваются без интернета."
+          }
+        }
+      }
+    },
+    "Downloading the voice (about 90 MB)…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачиваю голос (около 90 МБ)…"
+          }
+        }
+      }
+    },
+    "Download failed: %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось скачать: %@"
+          }
+        }
+      }
+    },
+    "Try again" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Попробовать снова"
+          }
+        }
+      }
+    },
+    "An open voice that runs on your Mac, no account or key. Russian only: other languages use the Mac voice." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открытый голос, работает прямо на Mac, без аккаунта и ключа. Только русский: другие языки озвучит голос Mac."
+          }
+        }
+      }
+    },
+    "Download Ruslan (about 90 MB)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачать Руслана (около 90 МБ)"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

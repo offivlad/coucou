@@ -1524,6 +1524,10 @@ struct SettingsView: View {
     @State private var elevenKeySaved: Bool = KeychainStore.shared.get(ElevenLabsTTS.keyName) != nil
 
     private func speakVoiceSample() {
+        if ttsEngine == "piper" || Locale.preferredLanguages.first?.hasPrefix("ru") == true {
+            VoiceSpeaker.shared.speak("Добрый вечер. Я Джарвис, слушаю вас.", locale: Locale(identifier: "ru-RU"))
+            return
+        }
         let en = voiceLanguage != "fr"
         VoiceSpeaker.shared.speak(en ? "Hi, I'm Coucou. Say OK Coucou whenever you need me."
                                      : "Salut, c'est Coucou. Dis OK Coucou quand tu as besoin de moi.",
@@ -1630,9 +1634,14 @@ struct SettingsView: View {
                 Picker(String(localized: "voice.tts-engine"), selection: $ttsEngine) {
                     Text(String(localized: "voice.tts-system")).tag("system")
                     Text(verbatim: "ElevenLabs").tag("elevenlabs")
+                    Text(String(localized: "Piper — Ruslan (offline, Russian)")).tag("piper")
                 }
                 .labelsHidden()   // the box is already titled "Voice"
                 .frame(maxWidth: 260)
+
+                if ttsEngine == "piper" {
+                    PiperInstallRow()
+                }
 
                 if ttsEngine == "elevenlabs" {
                     HStack(spacing: 6) {
@@ -2601,3 +2610,31 @@ extension SettingsView {
         self.embeddedSection = embeddedSection
     }
 }
+
+#if !APPSTORE
+/// Settings → Voice → Piper: download the offline voice once, then it speaks Russian.
+private struct PiperInstallRow: View {
+    @ObservedObject private var piper = PiperTTS.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            switch piper.state {
+            case .installed:
+                Label(String(localized: "Ruslan is installed: Russian answers are spoken offline."), systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 11)).foregroundColor(.green)
+            case .downloading(let p):
+                ProgressView(value: p).frame(maxWidth: 220)
+                Text(String(localized: "Downloading the voice (about 90 MB)…")).font(.system(size: 11)).foregroundColor(.secondary)
+            case .failed(let why):
+                Text(String(format: String(localized: "Download failed: %@"), why)).font(.system(size: 11)).foregroundColor(.orange)
+                Button(String(localized: "Try again")) { piper.install() }
+            case .notInstalled:
+                Text(String(localized: "An open voice that runs on your Mac, no account or key. Russian only: other languages use the Mac voice."))
+                    .font(.system(size: 11)).foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(String(localized: "Download Ruslan (about 90 MB)")) { piper.install() }
+            }
+        }
+    }
+}
+#endif

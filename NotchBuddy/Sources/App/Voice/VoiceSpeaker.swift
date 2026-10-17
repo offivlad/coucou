@@ -54,7 +54,7 @@ final class VoiceSpeaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDe
         }
         let audio: Task<Data?, Never>? = ElevenLabsTTS.isActive
             ? Task { await ElevenLabsTTS.shared.audio(for: text) }
-            : nil
+            : PiperTTS.isActive ? Task { await PiperTTS.audio(for: text) } : nil
         queue.append(Item(text: text, locale: locale, audio: audio))
         if !isSpeaking { playNext() }
     }
@@ -94,14 +94,15 @@ final class VoiceSpeaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDe
             self.waitingForAudio = false
             if let data {
                 do {
-                    let p = try AVAudioPlayer(data: data, fileTypeHint: AVFileType.mp3.rawValue)
+                    let isWav = data.prefix(4) == Data("RIFF".utf8)
+                    let p = try AVAudioPlayer(data: data, fileTypeHint: (isWav ? AVFileType.wav : AVFileType.mp3).rawValue)
                     p.delegate = self
                     self.player = p
                     if p.play() { return }
-                    appendAppLog("nb.log", "[Voice] ElevenLabs audio did not start playing")
+                    appendAppLog("nb.log", "[Voice] voice audio did not start playing")
                     self.player = nil
                 } catch {
-                    appendAppLog("nb.log", "[Voice] ElevenLabs audio unreadable (\(data.count) bytes): \(error.localizedDescription)")
+                    appendAppLog("nb.log", "[Voice] voice audio unreadable (\(data.count) bytes): \(error.localizedDescription)")
                 }
             }
             self.speakSystem(item.text, locale: item.locale)   // fallback: Mac voice
