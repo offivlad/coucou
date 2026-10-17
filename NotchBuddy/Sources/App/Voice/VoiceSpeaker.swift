@@ -92,11 +92,17 @@ final class VoiceSpeaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDe
             let data = await audio.value
             guard gen == self.generation else { return }
             self.waitingForAudio = false
-            if let data, let p = try? AVAudioPlayer(data: data) {
-                p.delegate = self
-                self.player = p
-                if p.play() { return }
-                self.player = nil
+            if let data {
+                do {
+                    let p = try AVAudioPlayer(data: data, fileTypeHint: AVFileType.mp3.rawValue)
+                    p.delegate = self
+                    self.player = p
+                    if p.play() { return }
+                    appendAppLog("nb.log", "[Voice] ElevenLabs audio did not start playing")
+                    self.player = nil
+                } catch {
+                    appendAppLog("nb.log", "[Voice] ElevenLabs audio unreadable (\(data.count) bytes): \(error.localizedDescription)")
+                }
             }
             self.speakSystem(item.text, locale: item.locale)   // fallback: Mac voice
         }

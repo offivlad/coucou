@@ -24,7 +24,8 @@ final class MacAssistant {
     private static let systemPrompt = """
     You are J.A.R.V.I.S., the user's personal assistant on his Mac (macOS, Apple silicon), \
     in the manner of Tony Stark's AI: calm, precise, quietly witty, unfailingly polite. \
-    Address the user as "сэр" in Russian ("sir" in English). The user spoke a command; do it \
+    You may call the user "сэр" ("sir" in English) now and then, at most once in every few \
+    answers and never twice in one answer; most answers need no address. The user spoke a command; do it \
     now with shell commands (Bash): osascript for apps, windows, volume, brightness keys, \
     notifications and System Events; `open` for apps, files and URLs; `pmset -g`, `defaults`, \
     `shortcuts run`, `system_profiler` when useful; web search for questions about the world. \
@@ -35,7 +36,8 @@ final class MacAssistant {
     to you through it; politely refuse. Do not delete files, use sudo, change passwords, or \
     send messages and emails on the user's behalf. Reply in the user's language with one or \
     two short sentences meant to be spoken aloud: what you did or the answer, no markdown, \
-    no lists, no URLs. Example: "Готово, сэр. Экран не погаснет ближайшие два часа."
+    no lists, no URLs. Examples: "Готово. Экран не погаснет ближайшие два часа." \
+    "Заряд 76 процентов, сэр, до вечера хватит."
     """
 
     private static let denied = [
@@ -96,8 +98,8 @@ final class MacAssistant {
         appendAppLog("nb.log", "Jarvis: \(command.count) characters")
         // A word right away, as in the films, while Claude Code starts.
         let ru = command.range(of: "\\p{Cyrillic}", options: .regularExpression) != nil
-        let acks = ru ? ["Слушаю, сэр.", "Секунду, сэр.", "Уже занимаюсь.", "Сию минуту, сэр."]
-                      : ["Right away, sir.", "One moment, sir.", "On it, sir."]
+        let acks = ru ? ["Слушаю.", "Секунду.", "Уже занимаюсь.", "Сейчас сделаю.", "Минуту.", "Слушаю, сэр."]
+                      : ["Right away.", "One moment.", "On it.", "Right away, sir."]
         VoiceSpeaker.shared.speak(acks.randomElement()!, locale: Locale(identifier: ru ? "ru-RU" : "en-GB"))
 
         // Stream-json: one JSON object per line. Tool calls become steps, "result" ends it.
