@@ -16,7 +16,9 @@ final class ElevenLabsTTS {
     static let shared = ElevenLabsTTS()
 
     static let keyName = "elevenlabs-api-key"
-    private static let model = "eleven_flash_v2_5"   // low-latency model
+    private static var model: String {
+        VoiceSettings.elevenHighQuality ? "eleven_multilingual_v2" : "eleven_flash_v2_5"
+    }
 
     static var isActive: Bool {
         VoiceSettings.ttsEngine == "elevenlabs" && KeychainStore.shared.get(keyName) != nil
@@ -43,7 +45,13 @@ final class ElevenLabsTTS {
         req.setValue(key, forHTTPHeaderField: "xi-api-key")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("audio/mpeg", forHTTPHeaderField: "Accept")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "model_id": Self.model])
+        var body: [String: Any] = ["text": text, "model_id": Self.model]
+        if VoiceSettings.elevenGender == "jarvis" {
+            // Steady and composed: little variation, a clear voice.
+            body["voice_settings"] = ["stability": 0.6, "similarity_boost": 0.8, "style": 0.15,
+                                      "use_speaker_boost": true]
+        }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
               (resp as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty else {
             appendAppLog("nb.log", "[Voice] ElevenLabs request failed, Mac voice used")
@@ -55,6 +63,8 @@ final class ElevenLabsTTS {
     /// The voice for the chosen gender, looked up once in the user's account.
     func voice(key: String) async -> Voice? {
         let gender = VoiceSettings.elevenGender
+        let typed = VoiceSettings.elevenVoiceId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !typed.isEmpty { return Voice(id: typed, name: typed) }
         if let c = chosen, c.gender == gender { return c.voice }
         var req = URLRequest(url: URL(string: "https://api.elevenlabs.io/v1/voices")!, timeoutInterval: 8)
         req.setValue(key, forHTTPHeaderField: "xi-api-key")
@@ -74,6 +84,24 @@ final class ElevenLabsTTS {
     /// the gender; else the first one.
     nonisolated static func pick(_ voices: [[String: Any]], gender: String) -> Voice? {
         func labels(_ v: [String: Any]) -> [String: String] { v["labels"] as? [String: String] ?? [:] }
+        if gender == "jarvis" {
+            // Iron Man's butler: a man, British, middle-aged, deep and calm.
+            func score(_ v: [String: Any]) -> Int {
+                let l = labels(v)
+                let all = (l.values.joined(separator: " ") + " " + (v["description"] as? String ?? "")).lowercased()
+                let name = (v["name"] as? String ?? "").lowercased()
+                var s = 0
+                if l["gender"]?.lowercased() == "male" { s += 10 }
+                if all.contains("british") { s += 4 }
+                if all.contains("middle") || all.contains("old") { s += 2 }
+                for w in ["deep", "calm", "confident", "authoritative", "narrat", "butler", "formal"] where all.contains(w) { s += 1 }
+                if ["daniel", "george", "brian", "charles", "adam", "bill"].contains(where: { name.hasPrefix($0) }) { s += 3 }
+                return s
+            }
+            guard let best = voices.max(by: { score($0) < score($1) }),
+                  let id = best["voice_id"] as? String else { return nil }
+            return Voice(id: id, name: best["name"] as? String ?? id)
+        }
         func isEnglish(_ v: [String: Any]) -> Bool {
             let l = labels(v)
             if let lang = l["language"] { return lang.lowercased().hasPrefix("en") }

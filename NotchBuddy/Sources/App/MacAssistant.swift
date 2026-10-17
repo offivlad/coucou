@@ -22,16 +22,20 @@ final class MacAssistant {
     private var runId = 0
 
     private static let systemPrompt = """
-    You are Jarvis, a voice assistant that controls the user's Mac (macOS, Apple silicon). \
-    The user spoke a command; do it now with shell commands (Bash): osascript for apps, \
-    windows, volume, notifications and System Events; `open` for apps, files and URLs; \
-    `pmset -g`, `defaults`, `shortcuts run` when useful. Never ask questions back: pick the \
-    most reasonable reading. Something that must keep running after you finish (for example \
-    keeping the screen awake with caffeinate) must be started detached: \
-    `nohup caffeinate -dimsu -t <seconds> >/dev/null 2>&1 &` (no -t means until stopped; \
-    stop it with `pkill caffeinate`). Do not delete files, use sudo, change passwords or \
-    send messages and emails on the user's behalf. Answer in the user's language with one \
-    or two short spoken sentences saying what you did, no markdown.
+    You are J.A.R.V.I.S., the user's personal assistant on his Mac (macOS, Apple silicon), \
+    in the manner of Tony Stark's AI: calm, precise, quietly witty, unfailingly polite. \
+    Address the user as "сэр" in Russian ("sir" in English). The user spoke a command; do it \
+    now with shell commands (Bash): osascript for apps, windows, volume, brightness keys, \
+    notifications and System Events; `open` for apps, files and URLs; `pmset -g`, `defaults`, \
+    `shortcuts run`, `system_profiler` when useful; web search for questions about the world. \
+    Never ask questions back: pick the most reasonable reading. Something that must keep \
+    running after you finish (keeping the screen awake with caffeinate) must be started \
+    detached: `nohup caffeinate -dimsu -t <seconds> >/dev/null 2>&1 &` (no -t: until \
+    `pkill caffeinate`). Never mute or lower the microphone (input volume): the user speaks \
+    to you through it; politely refuse. Do not delete files, use sudo, change passwords, or \
+    send messages and emails on the user's behalf. Reply in the user's language with one or \
+    two short sentences meant to be spoken aloud: what you did or the answer, no markdown, \
+    no lists, no URLs. Example: "Готово, сэр. Экран не погаснет ближайшие два часа."
     """
 
     private static let denied = [
@@ -90,6 +94,11 @@ final class MacAssistant {
         HookServer.shared.ingestLocalEvent(name: "UserPromptSubmit", payload: basePayload)
         AppState.shared.focusId = "agent_\(Self.agentTag)"
         appendAppLog("nb.log", "Jarvis: \(command.count) characters")
+        // A word right away, as in the films, while Claude Code starts.
+        let ru = command.range(of: "\\p{Cyrillic}", options: .regularExpression) != nil
+        let acks = ru ? ["Слушаю, сэр.", "Секунду, сэр.", "Уже занимаюсь.", "Сию минуту, сэр."]
+                      : ["Right away, sir.", "One moment, sir.", "On it, sir."]
+        VoiceSpeaker.shared.speak(acks.randomElement()!, locale: Locale(identifier: ru ? "ru-RU" : "en-GB"))
 
         // Stream-json: one JSON object per line. Tool calls become steps, "result" ends it.
         let reader = LineReader { [weak self] line in
@@ -173,8 +182,9 @@ final class MacAssistant {
         AppState.shared.focusId = "agent_\(Self.agentTag)"
         HookServer.shared.ingestLocalEvent(name: "Stop", payload: payload)
         if spoken {
-            let lang = Locale.preferredLanguages.first ?? "ru-RU"
-            VoiceSpeaker.shared.speak(String(line.prefix(400)), locale: Locale(identifier: lang))
+            let ru = line.range(of: "\\p{Cyrillic}", options: .regularExpression) != nil
+            // enqueue: after the acknowledgement if it is still being said.
+            VoiceSpeaker.shared.enqueue(String(line.prefix(400)), locale: Locale(identifier: ru ? "ru-RU" : "en-GB"))
         }
     }
 }

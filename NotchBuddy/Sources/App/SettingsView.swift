@@ -1516,6 +1516,9 @@ struct SettingsView: View {
     @AppStorage("voiceElevenGender")   private var elevenGender: String = "female"
     @AppStorage("voicePitchFemale")    private var pitchFemale: Double = VoiceSettings.defaultPitchFemale
     @AppStorage("voicePitchMale")      private var pitchMale: Double = VoiceSettings.defaultPitchMale
+    @AppStorage("voicePitchJarvis")    private var pitchJarvis: Double = VoiceSettings.defaultPitchJarvis
+    @AppStorage("voiceElevenVoiceId")  private var elevenVoiceId: String = ""
+    @AppStorage("voiceElevenHighQuality") private var elevenHighQuality: Bool = true
     @State private var webKeySaved: Bool = !(KeychainStore.shared.get("anthropic-api-key") ?? "").isEmpty
     @State private var elevenKeyDraft: String = ""
     @State private var elevenKeySaved: Bool = KeychainStore.shared.get(ElevenLabsTTS.keyName) != nil
@@ -1652,15 +1655,33 @@ struct SettingsView: View {
                 Picker(String(localized: "voice.tts-gender"), selection: $elevenGender) {
                     Text(String(localized: "voice.tts-female")).tag("female")
                     Text(String(localized: "voice.tts-male")).tag("male")
+                    Text(verbatim: "Jarvis").tag("jarvis")
                 }
                 .pickerStyle(.segmented)
-                .frame(maxWidth: 220)
+                .frame(maxWidth: 300)
                 .onChange(of: elevenGender) { _, _ in ElevenLabsTTS.shared.reset() }
+
+                if ttsEngine == "elevenlabs" {
+                    Toggle(String(localized: "Best quality (multilingual v2, a little slower)"), isOn: $elevenHighQuality)
+                    HStack(spacing: 6) {
+                        TextField(String(localized: "Voice ID (optional)"), text: $elevenVoiceId)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 220)
+                            .onChange(of: elevenVoiceId) { _, _ in ElevenLabsTTS.shared.reset() }
+                        if let name = ElevenLabsTTS.shared.currentVoiceName {
+                            Text(name).font(.system(size: 11)).foregroundColor(.secondary)
+                        }
+                    }
+                    Text(String(localized: "Any voice of your ElevenLabs Voice Library: copy its ID here. Empty: Coucou picks one for the type above."))
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 if ttsEngine == "system" {
                     HStack(spacing: 8) {
                         Text(String(localized: "voice.tts-pitch"))
-                        Slider(value: elevenGender == "male" ? $pitchMale : $pitchFemale,
+                        Slider(value: elevenGender == "jarvis" ? $pitchJarvis : elevenGender == "male" ? $pitchMale : $pitchFemale,
                                in: 0.8...1.6, step: 0.05,
                                onEditingChanged: { editing in
                                    // Released: hear the new pitch right away.

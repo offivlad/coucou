@@ -167,7 +167,7 @@ final class VoiceSpeaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDe
                 && !v.voiceTraits.contains(.isPersonalVoice)
         }
         guard !voices.isEmpty else { return AVSpeechSynthesisVoice(language: exact ?? lang) }
-        let wanted: AVSpeechSynthesisVoiceGender = gender == "male" ? .male : .female
+        let wanted: AVSpeechSynthesisVoiceGender = gender == "female" ? .female : .male
         let ofGender = voices.filter { Self.gender(of: $0) == wanted }
         let pool = ofGender.isEmpty ? voices : ofGender
 

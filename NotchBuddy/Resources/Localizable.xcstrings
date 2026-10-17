@@ -45748,6 +45748,36 @@
           }
         }
       }
+    },
+    "Best quality (multilingual v2, a little slower)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лучшее качество (multilingual v2, чуть медленнее)"
+          }
+        }
+      }
+    },
+    "Voice ID (optional)" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID голоса (необязательно)"
+          }
+        }
+      }
+    },
+    "Any voice of your ElevenLabs Voice Library: copy its ID here. Empty: Coucou picks one for the type above." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Любой голос из библиотеки ElevenLabs: вставьте сюда его ID. Если пусто, Coucou выберет голос по типу выше."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

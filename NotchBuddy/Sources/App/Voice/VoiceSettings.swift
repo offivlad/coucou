@@ -60,7 +60,17 @@ enum VoiceSettings {
         get { UserDefaults.standard.string(forKey: "voiceTTSEngine") ?? "system" }
         set { UserDefaults.standard.set(newValue, forKey: "voiceTTSEngine") }
     }
-    /// ElevenLabs voice: "female" (default) or "male".
+    /// A voice ID typed in Settings → Voice (ElevenLabs): wins over the automatic choice.
+    static var elevenVoiceId: String {
+        get { UserDefaults.standard.string(forKey: "voiceElevenVoiceId") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "voiceElevenVoiceId") }
+    }
+    /// ElevenLabs' multilingual v2 model: better Russian and a richer voice, a little slower.
+    static var elevenHighQuality: Bool {
+        get { UserDefaults.standard.object(forKey: "voiceElevenHighQuality") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "voiceElevenHighQuality") }
+    }
+    /// ElevenLabs voice: "female" (default), "male" or "jarvis" (deep, calm, British).
     static var elevenGender: String {
         get { UserDefaults.standard.string(forKey: "voiceElevenGender") ?? "female" }
         set { UserDefaults.standard.set(newValue, forKey: "voiceElevenGender") }
@@ -70,10 +80,13 @@ enum VoiceSettings {
     /// the voice's own, so it sounds younger. Range 0.8–1.6 (AVSpeech accepts 0.5–2).
     static let defaultPitchFemale = 1.1
     static let defaultPitchMale   = 1.25
-    static func pitchKey(for gender: String) -> String { gender == "male" ? "voicePitchMale" : "voicePitchFemale" }
+    static let defaultPitchJarvis = 0.9
+    static func pitchKey(for gender: String) -> String {
+        gender == "jarvis" ? "voicePitchJarvis" : gender == "male" ? "voicePitchMale" : "voicePitchFemale"
+    }
     static func pitch(for gender: String) -> Double {
         let v = UserDefaults.standard.double(forKey: pitchKey(for: gender))
-        let fallback = gender == "male" ? defaultPitchMale : defaultPitchFemale
+        let fallback = gender == "jarvis" ? defaultPitchJarvis : gender == "male" ? defaultPitchMale : defaultPitchFemale
         return v == 0 ? fallback : min(1.6, max(0.8, v))
     }
 
