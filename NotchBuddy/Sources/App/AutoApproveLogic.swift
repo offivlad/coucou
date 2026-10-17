@@ -67,3 +67,27 @@ enum AutoApprove {
         return group
     }
 }
+
+extension AutoApproveGroup {
+    /// Name of the group in Settings → Agents → Auto-approve.
+    var title: String {
+        switch self {
+        case .web:      return String(localized: "Web search and pages")
+        case .read:     return String(localized: "Read and search files")
+        case .edit:     return String(localized: "Edit files")
+        case .terminal: return String(localized: "Terminal commands")
+        case .mcp:      return String(localized: "Connected tools (MCP)")
+        }
+    }
+
+    /// What the group covers, under its name.
+    var detail: String {
+        switch self {
+        case .web:      return String(localized: "WebSearch, WebFetch")
+        case .read:     return String(localized: "Read, Glob, Grep: nothing is changed")
+        case .edit:     return String(localized: "Edit, Write: changes files in your project")
+        case .terminal: return String(localized: "Bash. Deleting, sudo, git push and the like still ask")
+        case .mcp:      return String(localized: "Any tool of a connected server, including ones that send or delete")
+        }
+    }
+}

@@ -773,7 +773,7 @@ final class HookServer: @unchecked Sendable {
                                  : decision == "allow" ? .allowOnce : .deny
         closeChatApprovalCard(agent: agent)
         ChatAppWatcher.shared.answerApproval(app, kind: kind) { [weak self] ok in
-            nbLog("Chat app approval \(decision) in \(app.displayName): \(ok ? "pressed" : "prompt gone")")
+            self?.nbLog("Chat app approval \(decision) in \(app.displayName): \(ok ? "pressed" : "prompt gone")")
             if ok {
                 self?.chatAppApprovalCleared(agent: agent)
             } else {

@@ -988,8 +988,8 @@ struct SettingsView: View {
                         }
                     )) {
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(autoApproveTitle(group))
-                            Text(autoApproveDetail(group))
+                            Text(group.title)
+                            Text(group.detail)
                                 .font(.system(size: 10))
                                 .foregroundColor(group == .terminal || group == .mcp ? .orange : .secondary)
                         }
@@ -1744,26 +1744,6 @@ struct SettingsView: View {
     // MARK: - App Store: hooks via NSOpenPanel + security-scoped bookmark
 
     #if APPSTORE
-    private func autoApproveTitle(_ group: AutoApproveGroup) -> String {
-        switch group {
-        case .web:      return String(localized: "Web search and pages")
-        case .read:     return String(localized: "Read and search files")
-        case .edit:     return String(localized: "Edit files")
-        case .terminal: return String(localized: "Terminal commands")
-        case .mcp:      return String(localized: "Connected tools (MCP)")
-        }
-    }
-
-    private func autoApproveDetail(_ group: AutoApproveGroup) -> String {
-        switch group {
-        case .web:      return String(localized: "WebSearch, WebFetch")
-        case .read:     return String(localized: "Read, Glob, Grep: nothing is changed")
-        case .edit:     return String(localized: "Edit, Write: changes files in your project")
-        case .terminal: return String(localized: "Bash. Deleting, sudo, git push and the like still ask")
-        case .mcp:      return String(localized: "Any tool of a connected server, including ones that send or delete")
-        }
-    }
-
     private func pickClaudeFolder(prompt: String) -> URL? {
         let panel = NSOpenPanel()
         panel.message = "Select your .claude folder (press ⇧⌘. to show hidden files)"
