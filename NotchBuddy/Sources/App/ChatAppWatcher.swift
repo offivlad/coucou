@@ -403,16 +403,53 @@ final class ChatAppWatcher {
 
     // MARK: - Answering a tool prompt from the notch
 
-    /// Presses Allow once / Allow always / Deny in the app, for the choice the user made
-    /// on the approval card. Calls back on the main actor with whether the button was found.
+    /// Answers the app's tool prompt with the choice the user made on the approval card.
+    /// First presses the button through Accessibility; the Claude app may ignore that, so
+    /// if the prompt is still there a moment later, sends the prompt's own shortcut
+    /// (⌘↩ allow once, ⇧⌘↩ always, Esc deny) to the app, and as a last resort brings the
+    /// app forward and sends it again. Calls back with whether the prompt went away.
     func answerApproval(_ app: ChatApp, kind: ChatButtonKind, done: @escaping @MainActor (Bool) -> Void) {
         guard let pid = pids[app] else { done(false); return }
         let scanner = self.scanner
         scanner.queue.async {
-            var ok = scanner.press(pid: pid, kind: kind)
-            // No "Allow once" on this prompt: "Allow always" is the only way to allow it.
-            if !ok, kind == .allowOnce { ok = scanner.press(pid: pid, kind: .allowAlways) }
-            DispatchQueue.main.async { MainActor.assumeIsolated { done(ok) } }
+            var pressed = scanner.press(pid: pid, kind: kind)
+            if !pressed, kind == .allowOnce { pressed = scanner.press(pid: pid, kind: .allowAlways) }
+            Thread.sleep(forTimeInterval: 0.8)
+            if scanner.scan(pid: pid, app: app, wantsFullScan: true).signal != .needsApproval {
+                DispatchQueue.main.async { MainActor.assumeIsolated { done(true) } }
+                return
+            }
+            // Accessibility press had no effect: the prompt's keyboard shortcut, to the app.
+            Self.sendShortcut(kind, to: pid)
+            Thread.sleep(forTimeInterval: 0.8)
+            if scanner.scan(pid: pid, app: app, wantsFullScan: true).signal != .needsApproval {
+                DispatchQueue.main.async { MainActor.assumeIsolated { done(true) } }
+                return
+            }
+            // Last try: the app in front, the shortcut through the system.
+            DispatchQueue.main.sync {
+                NSRunningApplication(processIdentifier: pid)?.activate(options: [])
+            }
+            Thread.sleep(forTimeInterval: 0.35)
+            Self.sendShortcut(kind, to: nil)
+            Thread.sleep(forTimeInterval: 0.8)
+            let gone = scanner.scan(pid: pid, app: app, wantsFullScan: true).signal != .needsApproval
+            DispatchQueue.main.async { MainActor.assumeIsolated { done(gone) } }
+        }
+    }
+
+    /// ⌘↩ (allow once), ⇧⌘↩ (always), Esc (deny): to one process, or to the frontmost app.
+    nonisolated private static func sendShortcut(_ kind: ChatButtonKind, to pid: pid_t?) {
+        let key: CGKeyCode = kind == .deny ? 53 : 36   // Esc, Return
+        var flags: CGEventFlags = []
+        if kind == .allowOnce { flags = [.maskCommand] }
+        if kind == .allowAlways { flags = [.maskCommand, .maskShift] }
+        let source = CGEventSource(stateID: .hidSystemState)
+        for down in [true, false] {
+            guard let event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: down) else { continue }
+            event.flags = flags
+            if let pid { event.postToPid(pid) } else { event.post(tap: .cghidEventTap) }
+            usleep(30_000)
         }
     }
 
