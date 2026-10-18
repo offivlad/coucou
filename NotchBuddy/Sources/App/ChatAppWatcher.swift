@@ -770,7 +770,8 @@ final class ChatAppWatcher {
                 }
                 HookServer.shared.closeChatWaitingCard(agent: app.agentTag, title: t)
             case .waiting(let t):
-                HookServer.shared.chatAppWaiting(agent: app.agentTag, chatTitle: t, quiet: quiet)
+                HookServer.shared.chatAppWaiting(agent: app.agentTag, chatTitle: t, quiet: quiet,
+                                                 waitingCount: list.waiting.count)
             case .renamed(_, let to):
                 HookServer.shared.chatAppStep(agent: app.agentTag, step: "▶ \(to)", working: false)
             case .finished(let t):

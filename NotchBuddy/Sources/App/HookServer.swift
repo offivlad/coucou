@@ -490,7 +490,12 @@ final class HookServer: @unchecked Sendable {
             hostApp: hostApp, bundleId: bundleId)
         // Set by the chat app watcher when the app is in front: the user already sees the
         // answer, so Mochi updates without sound, badge or expanding.
-        let quiet = payload["coucou_quiet"] as? Bool ?? false
+        // The same for a hook session whose window the user is in (the terminal, the editor,
+        // the Claude app's Code tab): its finish and questions are on screen already.
+        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? ""
+        let hostInFront = !front.isEmpty && payload["coucou_quiet"] == nil
+            && (front == bundleId || front == hostApp)
+        let quiet = (payload["coucou_quiet"] as? Bool ?? false) || hostInFront
         // For sessions that carry no id, derive a unique key from pill + cwd so that
         // concurrent anonymous sessions are tracked independently in RecapStore.
         let recapSessionId = (sessionId == "unknown" || sessionId.isEmpty)
@@ -786,14 +791,15 @@ final class HookServer: @unchecked Sendable {
     /// A chat of the app waits for the user (a question, or a prompt in a chat not on
     /// screen): a card says which one, its button opens that chat.
     @MainActor
-    func chatAppWaiting(agent: String, chatTitle: String, quiet: Bool) {
+    func chatAppWaiting(agent: String, chatTitle: String, quiet: Bool, waitingCount: Int = 1) {
         let id = "agent_\(agent)"
         upsertExternalAgent(id: id, name: agent)
         appendStep(id: id, step: String(localized: "⏳ Waiting for you: \(chatTitle)"))
         let state = AppState.shared
         guard approvals.isEmpty, state.pendingApproval == nil else { return }
         state.pendingApproval = ApprovalInfo(sessionId: Self.chatWaitingPrefix + agent, tool: "chat-waiting",
-                                             command: String(localized: "«\(chatTitle)» is waiting for your answer"),
+                                             command: String(localized: "«\(chatTitle)» is waiting for your answer")
+                                                + (waitingCount > 1 ? " · " + String(localized: "1 of \(waitingCount)") : ""),
                                              inputKey: "", pillId: id, projectName: chatTitle)
         if !quiet { SoundEngine.shared.play("question") }
         state.isPinned = true

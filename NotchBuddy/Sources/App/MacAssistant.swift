@@ -20,6 +20,11 @@ final class MacAssistant {
     private var process: Process?
     private var timeout: Task<Void, Never>?
     private var runId = 0
+    /// The last run's Claude Code session and when it ended: a command within a few minutes
+    /// continues it ("а теперь громче" knows what "it" is).
+    private var lastSession: String?
+    private var lastEnd: Date = .distantPast
+    private static let memoryWindow: TimeInterval = 180
 
     private static let systemPrompt = """
     You are J.A.R.V.I.S., the user's personal assistant on his Mac (macOS, Apple silicon), \
@@ -83,6 +88,10 @@ final class MacAssistant {
                        "--allowedTools", "Bash", "Read", "Glob", "Grep", "WebSearch", "WebFetch",
                        "--disallowedTools"] + Self.denied + [
                        "--settings", #"{"disableAllHooks":true}"#]
+        if let session = lastSession, Date().timeIntervalSince(lastEnd) < Self.memoryWindow {
+            p.arguments! += ["--resume", session]
+            appendAppLog("nb.log", "Jarvis: continues the previous exchange")
+        }
         var env = ProcessInfo.processInfo.environment
         env["PATH"] = "\(home.path)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
         p.environment = env
@@ -135,6 +144,7 @@ final class MacAssistant {
     private func handle(line: String) {
         guard let data = line.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        if let session = obj["session_id"] as? String, !session.isEmpty { lastSession = session }
         switch obj["type"] as? String {
         case "assistant":
             let content = ((obj["message"] as? [String: Any])?["content"] as? [[String: Any]]) ?? []
@@ -177,6 +187,7 @@ final class MacAssistant {
     }
 
     private func finish(text: String, spoken: Bool) {
+        lastEnd = Date()
         let line = text.replacingOccurrences(of: "\n", with: " ")
         var payload: [String: Any] = ["session_id": "jarvis", "coucou_agent": Self.agentTag]
         payload["last_assistant_message"] = line
