@@ -294,6 +294,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MailController.shared.start()
         ChatAppWatcher.shared.start()
         ClaudeUsageFetcher.shared.start()
+        DayPlanner.shared.start()
         #endif
         CryptoController.shared.start()
         PortfolioController.shared.start()

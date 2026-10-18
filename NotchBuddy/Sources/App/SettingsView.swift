@@ -6,6 +6,10 @@ struct SettingsView: View {
     @ObservedObject private var state = AppState.shared
     @ObservedObject private var demoEngine = DemoEngine.shared
     @AppStorage(GreetingWords.nameKey) private var greetingName: String = ""
+    #if !APPSTORE
+    @AppStorage(DayPlanner.enabledKey) private var dayPlanOn: Bool = true
+    @AppStorage(DayPlanner.leadMinutesKey) private var dayPlanLead: Int = 60
+    #endif
     @State private var autoApprove: Set<AutoApproveGroup> = AutoApproveGroup.enabled()
     @AppStorage("askClaudeByVoice") private var askClaudeOn: Bool = true
     @AppStorage("askClaudeAutoSend") private var askClaudeSend: Bool = true
@@ -470,6 +474,30 @@ struct SettingsView: View {
             }
             .padding(6)
         }
+
+        #if !APPSTORE
+        GroupBox(String(localized: "Today")) {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle(String(localized: "Show today's events and reminders in the notch"), isOn: $dayPlanOn)
+                    .onChange(of: dayPlanOn) { _, on in
+                        if on { DayPlanner.shared.start() } else { DayPlanner.shared.stop() }
+                    }
+                Picker(String(localized: "Alert before"), selection: $dayPlanLead) {
+                    Text(String(localized: "15 min")).tag(15)
+                    Text(String(localized: "30 min")).tag(30)
+                    Text(String(localized: "1 hour")).tag(60)
+                    Text(String(localized: "2 hours")).tag(120)
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 260)
+                .disabled(!dayPlanOn)
+                Text(String(localized: "From Calendar and Reminders on this Mac, read only."))
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            .padding(6)
+        }
+        #endif
 
         GroupBox(String(localized: "Language")) {
             VStack(alignment: .leading, spacing: 10) {

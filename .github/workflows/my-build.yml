@@ -34,6 +34,7 @@ jobs:
           bash scripts/test-ask-claude.sh
           bash scripts/test-voice-wake.sh
           bash scripts/test-claude-hooks.sh
+          bash scripts/test-day-plan.sh
 
       - name: Build GitHub app (Release)
         run: |

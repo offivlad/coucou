@@ -788,6 +788,37 @@ final class HookServer: @unchecked Sendable {
         expandIfNeeded(to: .finished)
     }
 
+    // MARK: - Day plan (DayPlanner)
+
+    /// The "Today" pill: two lines, the rest of the day above, the next item below.
+    @MainActor
+    func dayPlanShow(lines: [String]) {
+        let id = "agent_\(DayPlanner.agentTag)"
+        let state = AppState.shared
+        upsertExternalAgent(id: id, name: String(localized: "Today"))
+        guard let idx = state.tasks.firstIndex(where: { $0.id == id }), state.tasks[idx].steps != lines else { return }
+        state.tasks[idx].steps = lines
+        state.tasks[idx].stepIndex = max(0, lines.count - 1)
+    }
+
+    @MainActor
+    func dayPlanRemove() {
+        AppState.shared.removeTask(id: "agent_\(DayPlanner.agentTag)")
+    }
+
+    /// An item starts soon: the finished-style card with the line, a sound, the island open.
+    @MainActor
+    func dayPlanAlert(line: String) {
+        let id = "agent_\(DayPlanner.agentTag)"
+        let state = AppState.shared
+        upsertExternalAgent(id: id, name: String(localized: "Today"))
+        if let idx = state.tasks.firstIndex(where: { $0.id == id }) { state.tasks[idx].finalLine = line }
+        SoundEngine.shared.play("question")
+        guard approvals.isEmpty, state.pendingApproval == nil else { setPillBadge(id: id, badge: .finished); return }
+        state.focusId = id
+        expandIfNeeded(to: .finished)
+    }
+
     /// A chat of the app waits for the user (a question, or a prompt in a chat not on
     /// screen): a card says which one, its button opens that chat.
     @MainActor
@@ -925,7 +956,7 @@ final class HookServer: @unchecked Sendable {
         // The desktop app pills read "Claude" / "ChatGPT", not their coucou_agent tag.
         let isChatApp = ChatApp.allCases.contains { $0.pillId == id }
         let displayName = isChatApp ? (PillCatalog.definition(for: id)?.name ?? name)
-            : id == "agent_jarvis" ? "Jarvis" : name
+            : id == "agent_jarvis" ? "Jarvis" : id == "agent_today" ? String(localized: "Today") : name
         let task = AgentTask(id: id, name: displayName, color: color, state: .idle, steps: [], source: .agent)
         if let claudeIdx = state.tasks.firstIndex(where: { $0.id == "integration_claude" }) {
             state.tasks.insert(task, at: claudeIdx + 1)

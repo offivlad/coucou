@@ -739,7 +739,8 @@ struct FinishedView: View {
             CardBackground(wash: .green)
             VStack(alignment: .leading, spacing: 5) {
                 AgentWho(task: state.focusTask,
-                         label: state.focusTask?.id != nil && state.focusTask?.id == state.chatAnswerPillId
+                         label: state.focusTask?.id == "agent_today" ? "coming up"
+                            : state.focusTask?.id != nil && state.focusTask?.id == state.chatAnswerPillId
                             ? "answered" : "Claude Code finished")
                 Text({
                     if let fl = state.focusTask?.finalLine { return fl }
@@ -750,7 +751,12 @@ struct FinishedView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 HStack(spacing: 8) {
-                    if state.focusTask?.id == "agent_claude-desktop" {
+                    if state.focusTask?.id == "agent_today" {
+                        PrimaryButton("Open Calendar") {
+                            NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Calendar.app"))
+                            NotificationCenter.default.post(name: .islandCollapse, object: nil)
+                        }
+                    } else if state.focusTask?.id == "agent_claude-desktop" {
                         // Sessions from the Claude desktop app live there, not in a terminal.
                         PrimaryButton("Open Claude") {
                             openClaudeDesktopApp()

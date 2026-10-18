@@ -149,6 +149,10 @@ targets:
         NSSpeechRecognitionUsageDescription: "Coucou turns your voice into the text of a chat message."
         NSAccessibilityUsageDescription: "Pour lire le titre de la fenêtre active et l'attacher comme contexte."
         NSContactsUsageDescription: "Coucou looks up an email address when you ask it, by voice, to prepare an email."
+        NSCalendarsFullAccessUsageDescription: "Coucou shows today's events in the notch and reminds you before they start."
+        NSCalendarsUsageDescription: "Coucou shows today's events in the notch and reminds you before they start."
+        NSRemindersFullAccessUsageDescription: "Coucou shows today's reminders in the notch and reminds you before they are due."
+        NSRemindersUsageDescription: "Coucou shows today's reminders in the notch and reminds you before they are due."
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         CFBundleLocalizations:
