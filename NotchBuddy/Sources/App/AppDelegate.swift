@@ -293,6 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = SpotifyController.shared
         MailController.shared.start()
         ChatAppWatcher.shared.start()
+        ClaudeUsageFetcher.shared.start()
         #endif
         CryptoController.shared.start()
         PortfolioController.shared.start()
