@@ -145,6 +145,14 @@ final class IslandStateMachine {
         state = .home
     }
 
+    /// An alert (finished, error) opened the island with the pointer elsewhere: without
+    /// this it stayed open until the pointer passed over it. Folds after the auto-close
+    /// delay unless the pointer comes in (mouseEntered cancels the timer) or it is held open.
+    func scheduleAlertAutoClose() {
+        guard state == .home, isHeldOpen?() != true else { return }
+        scheduleHomeCollapse()
+    }
+
     /// The app folded the island itself (Escape, Settings, OK button, auto-close).
     /// Move to `.petit` right away so hover and click keep working; waiting for the
     /// 15 s home timer left the island compact on screen while the FSM still said `.home`.

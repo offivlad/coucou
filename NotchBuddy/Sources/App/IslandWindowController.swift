@@ -868,6 +868,7 @@ final class IslandWindowController: NSWindowController {
             guard let self, let view = note.object as? IslandView else { return }
             self.fsm.openedExternally()
             self.expand(to: view)
+            if view == .finished || view == .error { self.fsm.scheduleAlertAutoClose() }
         }
 
         // Hook server compact reveal (non-alert work events: session start, tool use, etc.)
