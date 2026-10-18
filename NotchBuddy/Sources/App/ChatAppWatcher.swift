@@ -33,9 +33,11 @@ private final class ChatAppScanner: @unchecked Sendable {
         var scanComplete = false
         /// A permission prompt was found in this scan.
         var promptSeen = false
+        /// Elements whose attributes could not be read: their subtrees are unknown.
+        var readFailures = 0
 
-        /// The prompt is confirmed gone: a complete scan that did not find it.
-        var promptConfirmedGone: Bool { scanComplete && !promptSeen }
+        /// The prompt is confirmed gone: a complete scan, every element read, no prompt.
+        var promptConfirmedGone: Bool { scanComplete && readFailures == 0 && !promptSeen }
     }
 
     let queue = DispatchQueue(label: "fr.louisraille.coucou.chat-apps", qos: .utility)
@@ -136,6 +138,7 @@ private final class ChatAppScanner: @unchecked Sendable {
         var promptText: String? = nil
         var complete = false
         var promptSeen = false
+        var readFailures = 0
         var rows: [ChatRow]? = nil
         var promptIsWeb = false
 
@@ -146,6 +149,7 @@ private final class ChatAppScanner: @unchecked Sendable {
             let walk = walk(from: windows, budget: Self.fullScanBudget)
             kinds = walk.kinds
             complete = walk.complete
+            readFailures = walk.failures
             promptButtons[pid] = walk.prompt.isEmpty ? nil : walk.prompt
             promptSeen = walk.promptLabel != nil || !walk.prompt.isEmpty
             if let box = walk.promptBox { promptText = texts(in: box) }
@@ -157,7 +161,7 @@ private final class ChatAppScanner: @unchecked Sendable {
                 promptIsWeb = ChatAppWatcherLogic.isWebPrompt(promptText)
             }
             if walk.sidebarSeen && !walk.complete {
-                appendAppLog("nb.log", "[ChatApps] incomplete sidebar scan; previous chat states kept")
+                appendAppLog("nb.log", "[ChatApps] incomplete sidebar scan (\(walk.sidebarFailures) unreadable); previous chat states kept")
             }
             // Only a complete walk lists every chat: a cut-short one would make the chats it
             // did not reach look finished.
@@ -177,7 +181,7 @@ private final class ChatAppScanner: @unchecked Sendable {
         return Result(signal: signal, title: ChatAppWatcherLogic.conversationTitle(title, app: app),
                       promptText: signal == .needsApproval ? promptText : nil,
                       rows: rows, promptIsWeb: promptIsWeb,
-                      scanComplete: complete, promptSeen: promptSeen)
+                      scanComplete: complete, promptSeen: promptSeen, readFailures: readFailures)
     }
 
     // MARK: - Diagnostic map
@@ -255,8 +259,12 @@ private final class ChatAppScanner: @unchecked Sendable {
         var kinds: [ChatButtonKind] = []
         /// Grandparent of the first message box button met: holds the stop / send spot.
         var box: AXUIElement? = nil
-        /// The walk ran out of elements before running out of budget.
+        /// The walk ran out of elements before running out of budget, and read every element
+        /// of the sidebar (a sidebar element that failed could hide a running chat).
         var complete = false
+        /// Elements whose attributes could not be read, anywhere / inside the sidebar.
+        var failures = 0
+        var sidebarFailures = 0
         /// Allow once / Allow always / Deny buttons, first of each.
         var prompt: [ChatButtonKind: AXUIElement] = [:]
         /// The element around the prompt, to read its title.
@@ -301,7 +309,11 @@ private final class ChatAppScanner: @unchecked Sendable {
             guard AXUIElementCopyMultipleAttributeValues(visit.element, attributes,
                                                          AXCopyMultipleAttributeOptions(rawValue: 0),
                                                          &valuesRef) == .success,
-                  let values = valuesRef as? [AnyObject], values.count == 6 else { continue }
+                  let values = valuesRef as? [AnyObject], values.count == 6 else {
+                result.failures += 1
+                if visit.inSidebar { result.sidebarFailures += 1 }
+                continue
+            }
 
             let role = values[0] as? String ?? ""
             let subrole = values[5] as? String ?? ""
@@ -357,7 +369,7 @@ private final class ChatAppScanner: @unchecked Sendable {
                                    inSidebar: visit.inSidebar || (sidebarRoot.map { CFEqual($0, visit.element) } ?? false)))
             }
         }
-        result.complete = true
+        result.complete = result.sidebarFailures == 0
         return result
     }
 
@@ -566,8 +578,9 @@ final class ChatAppWatcher {
                 DispatchQueue.main.async { MainActor.assumeIsolated { done(gone) } }
                 return
             }
-            var pressed = scanner.press(pid: pid, kind: kind)
-            if !pressed, kind == .allowOnce { pressed = scanner.press(pid: pid, kind: .allowAlways) }
+            _ = scanner.press(pid: pid, kind: kind)
+            // Never a different button than the one asked for: "Allow once" must not become
+            // "Allow always". When the button is not pressable, its own shortcut comes next.
             Thread.sleep(forTimeInterval: 0.8)
             if scanner.scan(pid: pid, app: app, wantsFullScan: true).promptConfirmedGone {
                 appendAppLog("nb.log", "Chat app prompt answered by Accessibility press")
