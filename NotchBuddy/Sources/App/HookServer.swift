@@ -761,6 +761,26 @@ final class HookServer: @unchecked Sendable {
         if working { AppState.shared.updateTask(id: id, state: .thinking) }
     }
 
+    /// One chat of the app finished while others still run: the pill keeps working, the
+    /// island shows the finished card for that chat (sound + expand), as a Stop would.
+    @MainActor
+    func chatAppChatFinished(agent: String, title: String, quiet: Bool) {
+        let id = "agent_\(agent)"
+        upsertExternalAgent(id: id, name: agent)
+        appendStep(id: id, step: String(localized: "✓ Ready: \(title)"))
+        let state = AppState.shared
+        AppState.shared.updateTask(id: id, state: .thinking)
+        guard !quiet else { return }
+        if let idx = state.tasks.firstIndex(where: { $0.id == id }) {
+            state.tasks[idx].finalLine = String(localized: "Answer ready · \(title)")
+        }
+        state.chatAnswerPillId = id
+        SoundEngine.shared.play("finish")
+        guard approvals.isEmpty, state.pendingApproval == nil else { setPillBadge(id: id, badge: .finished); return }
+        state.focusId = id
+        expandIfNeeded(to: .finished)
+    }
+
     /// A chat of the app waits for the user (a question, or a prompt in a chat not on
     /// screen): a card says which one, its button opens that chat.
     @MainActor

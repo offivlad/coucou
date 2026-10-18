@@ -704,7 +704,7 @@ final class ChatAppWatcher {
                rows[i].status == nil {
                 rows[i] = ChatRow(id: rows[i].id, title: title, status: .running)
             }
-            applyChatRows(rows, app: app, quiet: quiet)
+            applyChatRows(rows, app: app, quiet: quiet, openTitle: title)
             return
         }
         for event in events {
@@ -726,13 +726,12 @@ final class ChatAppWatcher {
         }
     }
 
-    private var listTrackers: [ChatApp: ChatListTracker] = [:]
     private var sidebarSeen: [ChatApp: Bool] = [:]
     private var sidebarSeenAt: [ChatApp: Date] = [:]
 
     /// Several chats at once: one pill, a step per chat, a sound and a card when one ends or
     /// waits for the user; the pill rests only when no known chat is left.
-    private func applyChatRows(_ rows: [ChatRow], app: ChatApp, quiet: Bool) {
+    private func applyChatRows(_ rows: [ChatRow], app: ChatApp, quiet: Bool, openTitle: String?) {
         var list = rowTrackers[app] ?? ChatRowsTracker()
         let wasActive = list.isActive
         let events = list.update(rows)
@@ -762,12 +761,16 @@ final class ChatAppWatcher {
                 HookServer.shared.chatAppStep(agent: app.agentTag, step: "▶ \(to)", working: false)
             case .finished(let t):
                 HookServer.shared.closeChatWaitingCard(agent: app.agentTag, title: t)
+                // Silent only when this very chat is the one on screen; a chat finishing
+                // behind the one the user reads is announced like any finished task.
+                let chatQuiet = quiet && openTitle == t
+                appendAppLog("nb.log", "[ChatApps] finished (\(chatQuiet ? "on screen" : "announced")), others running: \(list.isActive)")
                 if list.isActive {
-                    HookServer.shared.chatAppStep(agent: app.agentTag, step: String(localized: "✓ Ready: \(t)"), working: true)
-                    if !quiet { SoundEngine.shared.play("finish") }
+                    HookServer.shared.chatAppChatFinished(agent: app.agentTag, title: t, quiet: chatQuiet)
                 } else {
                     var stop = basePayload(app)
-                    stop["coucou_quiet"] = quiet
+                    stop["coucou_quiet"] = chatQuiet
+                    if !chatQuiet { AppState.shared.focusId = app.pillId }
                     stop["last_assistant_message"] = String(localized: "Answer ready · \(t)")
                     AppState.shared.chatAnswerPillId = app.pillId
                     HookServer.shared.ingestLocalEvent(name: "Stop", payload: stop)
