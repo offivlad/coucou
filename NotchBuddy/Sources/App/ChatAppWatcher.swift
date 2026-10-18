@@ -132,7 +132,7 @@ private final class ChatAppScanner: @unchecked Sendable {
             AXUIElementSetAttributeValue(root, "AXManualAccessibility" as CFString, kCFBooleanTrue)
             accessibilityAsked.insert(pid)
         }
-        let title = windowTitle(root)
+        var title = windowTitle(root)
 
         var kinds: [ChatButtonKind] = []
         var promptText: String? = nil
@@ -149,6 +149,9 @@ private final class ChatAppScanner: @unchecked Sendable {
             let walk = walk(from: windows, budget: Self.fullScanBudget)
             kinds = walk.kinds
             complete = walk.complete
+            // Claude's window is always titled "Claude"; its web page carries the open chat's
+            // title ("My chat - Claude").
+            if let page = walk.pageTitle { title = page }
             readFailures = walk.failures
             promptButtons[pid] = walk.prompt.isEmpty ? nil : walk.prompt
             promptSeen = walk.promptLabel != nil || !walk.prompt.isEmpty
@@ -278,6 +281,8 @@ private final class ChatAppScanner: @unchecked Sendable {
         /// DOM id, and its title (from its "More options: <title>" button).
         var rows: [(hit: AXUIElement, idHolder: AXUIElement?, title: String)] = []
         var sidebarSeen = false
+        /// The web page's title: "<open chat> - Claude".
+        var pageTitle: String? = nil
     }
 
     private struct Visit {
@@ -318,6 +323,9 @@ private final class ChatAppScanner: @unchecked Sendable {
 
             let role = values[0] as? String ?? ""
             let subrole = values[5] as? String ?? ""
+            if role == "AXWebArea", result.pageTitle == nil, let t = values[2] as? String, !t.isEmpty {
+                result.pageTitle = t
+            }
             let desc = values[1] as? String ?? ""
             if visit.inSidebar, role == "AXPopUpButton", let title = ChatAppWatcherLogic.rowTitle(fromOptionsLabel: desc),
                let hit = visit.grandparent {
@@ -714,9 +722,10 @@ final class ChatAppWatcher {
             sidebarSeen[app] = true
             sidebarSeenAt[app] = Date()
             // The open chat writing an answer counts even when its row shows no status.
-            if result.signal == .generating, let title, let i = rows.firstIndex(where: { $0.title == title }),
+            if result.signal == .generating, let title,
+               let i = rows.firstIndex(where: { ChatAppWatcherLogic.sameChat(title, $0.title) }),
                rows[i].status == nil {
-                rows[i] = ChatRow(id: rows[i].id, title: title, status: .running)
+                rows[i] = ChatRow(id: rows[i].id, title: rows[i].title, status: .running)
             }
             applyChatRows(rows, app: app, quiet: quiet, openTitle: title)
             return
@@ -778,7 +787,7 @@ final class ChatAppWatcher {
                 HookServer.shared.closeChatWaitingCard(agent: app.agentTag, title: t)
                 // Silent only when this very chat is the one on screen; a chat finishing
                 // behind the one the user reads is announced like any finished task.
-                let chatQuiet = quiet && openTitle == t
+                let chatQuiet = quiet && ChatAppWatcherLogic.sameChat(openTitle, t)
                 appendAppLog("nb.log", "[ChatApps] finished (\(chatQuiet ? "on screen" : "announced")), others running: \(list.isActive)")
                 if list.isActive {
                     HookServer.shared.chatAppChatFinished(agent: app.agentTag, title: t, quiet: chatQuiet)

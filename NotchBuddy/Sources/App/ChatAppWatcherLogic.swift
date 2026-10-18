@@ -178,6 +178,14 @@ enum ChatAppWatcherLogic {
         return marks.contains { t.contains($0) }
     }
 
+    /// The open chat's title (cut to 60 characters with "…") names this sidebar row.
+    static func sameChat(_ open: String?, _ row: String) -> Bool {
+        guard let open, !open.isEmpty else { return false }
+        if open == row { return true }
+        if open.hasSuffix("…") { return row.hasPrefix(String(open.dropLast())) }
+        return false
+    }
+
     /// The conversation title worth showing, or nil when the window title is only the app name.
     static func conversationTitle(_ rawTitle: String?, app: ChatApp) -> String? {
         guard let rawTitle else { return nil }
