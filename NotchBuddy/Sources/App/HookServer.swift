@@ -55,6 +55,7 @@ final class HookServer: @unchecked Sendable {
     private var questionSessionId: String = ""        // sessionId for the pending question (recap tracking)
     private var focusBeforeQuestion: String? = nil    // saved focus to restore after question
     private var activeSessionId: String? = nil        // current Claude Code session
+    private var chatCardGeneration = 0
     private var focusBeforeApproval: String? = nil    // saved focus to restore after approval
     private var sessions = PillSessionRegistry()      // live sessions behind each pill
     private var lastHookEvents: [String: (name: String, at: Date)] = [:]  // per coucou_agent, main actor only
@@ -734,6 +735,7 @@ final class HookServer: @unchecked Sendable {
             if focusBeforeApproval == nil { focusBeforeApproval = state.focusId }
             withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = id }
             expandIfNeeded(to: .approval)
+            hideChatCardLater(sessionId: Self.chatApprovalPrefix + agent, pillId: id)
         }
         #endif
         guard !quiet else { return }
@@ -798,6 +800,33 @@ final class HookServer: @unchecked Sendable {
         if focusBeforeApproval == nil { focusBeforeApproval = state.focusId }
         withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = id }
         expandIfNeeded(to: .approval)
+        hideChatCardLater(sessionId: Self.chatWaitingPrefix + agent, pillId: id)
+    }
+
+    /// A card about a Claude app chat folds away on its own (the app and macOS notify too):
+    /// after the auto-close delay, at least 12 s, the island goes back to compact and the
+    /// pill keeps a badge. A Claude Code request (it blocks Claude Code) is never hidden.
+    @MainActor
+    private func hideChatCardLater(sessionId: String, pillId: String) {
+        let delay = max(12, AppState.shared.autoCloseInterval)
+        chatCardGeneration += 1
+        let generation = chatCardGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            MainActor.assumeIsolated {
+                let state = AppState.shared
+                // A newer card (same chat app) has its own timer.
+                guard generation == self.chatCardGeneration,
+                      let shown = state.pendingApproval, shown.sessionId == sessionId else { return }
+                state.pendingApproval = nil
+                state.isPinned = false
+                if let prev = self.focusBeforeApproval { state.focusId = prev }
+                self.focusBeforeApproval = nil
+                self.setPillBadge(id: pillId, badge: .approval)
+                if state.view == .approval { state.view = state.tasks.isEmpty ? .empty : .overview }
+                NotificationCenter.default.post(name: .islandCollapse, object: nil)
+                nbLog("chat card hidden after \(Int(delay)) s: \(sessionId)")
+            }
+        }
     }
 
     @MainActor
