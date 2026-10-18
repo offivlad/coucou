@@ -154,8 +154,9 @@ private final class ChatAppScanner: @unchecked Sendable {
             promptSeen = walk.promptLabel != nil || !walk.prompt.isEmpty
             if let box = walk.promptBox { promptText = texts(in: box) }
             if let label = walk.promptLabel {
+                // The card's own label names the tool: that alone decides (its texts can
+                // hold page code that mentions "fetch" or a URL).
                 promptIsWeb = ChatAppWatcherLogic.isWebPromptKind(label)
-                    || ChatAppWatcherLogic.isWebPrompt(promptText)
                 promptText = label + " " + (promptText ?? "")
             } else {
                 promptIsWeb = ChatAppWatcherLogic.isWebPrompt(promptText)

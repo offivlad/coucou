@@ -170,6 +170,8 @@ enum ChatAppWatcherLogic {
     static func isWebPrompt(_ text: String?) -> Bool {
         guard let text else { return false }
         let t = normalize(text)
+        if let tool = promptTool(text) { return isWebTool(tool) }
+        if ["javascript", "exec", "computer", "wordpress", "bash", "terminal"].contains(where: { t.contains($0) }) { return false }
         let marks = ["веб-страниц", "веб страниц", "web page", "webpage", "web search", "search the web",
                      "поиск в интернете", "искать в интернете", "fetch", "page web", "recherche web",
                      "navigate", "открыть страницу", "url http"]
@@ -297,9 +299,41 @@ enum ChatRowStatus: Equatable, Sendable {
 extension ChatAppWatcherLogic {
     /// "Запрос разрешения: Веб-запрос" → a web page or web search prompt.
     static func isWebPromptKind(_ desc: String?) -> Bool {
-        guard let desc else { return false }
-        let d = normalize(desc)
-        return ["веб", "web", "fetch", "url", "navigate"].contains { d.contains($0) }
+        guard let desc, let tool = promptTool(desc) else { return false }
+        return isWebTool(tool)
+    }
+
+    /// The tool a prompt card asks for: "Запрос разрешения: Navigate Url https://…" →
+    /// "navigate". Only the words before the first field ("Action", "Url", "Text"…): the
+    /// fields hold page code and addresses, which say nothing about what the tool does.
+    static func promptTool(_ desc: String) -> String? {
+        var d = desc.trimmingCharacters(in: .whitespacesAndNewlines)
+        var hadPrefix = false
+        for prefix in ["Запрос разрешения:", "Permission request:", "Demande d'autorisation :", "Demande d'autorisation:"]
+        where d.lowercased().hasPrefix(prefix.lowercased()) {
+            d = String(d.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+            hadPrefix = true
+            break
+        }
+        guard hadPrefix else { return nil }
+        let fields = [" Action ", " Url ", " URL ", " Text ", " Tab id ", " Query ", " Command ", " Path ",
+                      " Coordinate ", " Code ", " Input ", " Prompt ", "\n"]
+        var end = d.endIndex
+        for f in fields { if let r = d.range(of: f), r.lowerBound < end { end = r.lowerBound } }
+        let tool = normalize(String(d[..<end]))
+        return tool.isEmpty ? nil : String(tool.prefix(60))
+    }
+
+    /// Opening or reading a page, a web search: what the auto-approve "web" group covers.
+    /// Anything that runs code, clicks, types, or touches files and other services is not.
+    static func isWebTool(_ tool: String) -> Bool {
+        let t = normalize(tool)
+        let never = ["javascript", "script", "exec", "computer", "click", "type", "form", "upload",
+                     "wordpress", "bash", "shell", "terminal", "command", "file", "write", "edit", "delete"]
+        if never.contains(where: { t.contains($0) }) { return false }
+        let web = ["navigate", "веб-запрос", "веб запрос", "веб-поиск", "веб поиск", "web search", "web fetch",
+                   "fetch", "открыть страницу", "загрузить веб", "web page", "recherche web"]
+        return web.contains { t.contains($0) }
     }
 
     /// The prompt card's own label: "Запрос разрешения: …" / "Permission request: …".
