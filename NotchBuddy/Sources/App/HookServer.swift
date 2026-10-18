@@ -824,7 +824,7 @@ final class HookServer: @unchecked Sendable {
                 self.setPillBadge(id: pillId, badge: .approval)
                 if state.view == .approval { state.view = state.tasks.isEmpty ? .empty : .overview }
                 NotificationCenter.default.post(name: .islandCollapse, object: nil)
-                nbLog("chat card hidden after \(Int(delay)) s: \(sessionId)")
+                self.nbLog("chat card hidden after \(Int(delay)) s: \(sessionId)")
             }
         }
     }
